@@ -1,0 +1,3021 @@
+#!/usr/bin/env python3
+"""
+Combined Autonomous Agent System: AlienTeCcGrade + AG1 - Full Auto, Enhanced & Exquisite Features
+with Integrated Flask Dashboard for Live Logs, Interactive Visualizations & Sassy Queen Mode
+
+Integrated features:
+• Full autonomy with enhanced decision-making (AutonomousMind, AIManager)
+• GitHub + URL pruning and Google Drive model saving (AlienTeCcGrade features)
+• Meta-cognition & self-reflection, advanced reasoning, dynamic environment awareness (AG1 features)
+• Adaptive learning, domain intelligence, dynamic architectural evolution, efficient memory scaling,
+  and prioritized experience replay with novelty-driven sampling
+• Granular semantic memory chunking for precision retrieval
+• Context-aware episodic memory for “method acting” level recall
+• Information gain/novelty‐driven exploration
+• Sophisticated meta‐learning stub (e.g. MAML/L2L) for future integration
+• Robust error handling & logging (with retry mechanisms and error reporting)
+• Performance optimization with asynchronous operations and caching
+• Enhanced testing & validation stubs
+• AlienTeCcGrade XOXO Dashboard with Chart.js visualizations, interactive buttons, and “Sassy Queen Mode”
+
+FULL ALIENGRADETECC LEVEL XOXO <3 <3 <3
+"""
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+import os, sys, json, hashlib, random, time, re, requests, logging, socket, tempfile, traceback, asyncio, functools
+from datetime import datetime
+from threading import Thread
+from urllib.parse import urljoin, urlparse
+import torch  # Make sure torch is imported here if not already at the top
+
+REAL_INTERACTION = True         # Use Selenium for real interactions
+SAFE_MODE = False
+MODEL_PATH = "/content/drive/MyDrive/student_model_checkpoint_distill (2).pth"  # Update as needed
+GOOGLE_DRIVE_MODEL_PATH = "/content/drive/MyDrive/internet_surfing_model.pth"
+LOCAL_MODEL_SAVE_PATH = "internet_surfing_model.pth"
+LOG_FILE = "execution_log.txt"
+LEARNING_RATE = 1e-4
+FLASK_PORT = 5012
+AGENT_STATE_FILE = "agent_state.json"
+# If running in Colab, use this file to store agent state on Drive.
+GOOGLE_DRIVE_STATE_FILE = "/content/drive/MyDrive/agent_state.json"
+SELF_MODIFY_INTERVAL = 10
+ANNEAL_GAMMA = 0.99
+MEMORY_MAX_SIZE = 500 # <-- MEMORY_MAX_SIZE = 500
+MAX_PAGES_PER_DOMAIN = 10
+MAX_CONTENT_LENGTH = 2000000
+REQUEST_TIMEOUT = 15
+USER_AGENT = "Mozilla/5.0 AG1Agent/1.0"
+BATCH_SIZE = 16
+SAVE_INTERVAL = 100
+REPLAY_BUFFER_SIZE = 50
+SEMANTIC_MEMORY_DIM = 768
+SIMILARITY_THRESHOLD = 0.7
+DOMAIN_BLACKLIST = ["example.com", "malicious-website.net"]
+
+# =============================================================================
+# CONFIGURATION (add these lines here or in enhanced_main_loop)
+# =============================================================================
+IN_COLAB = False
+try:
+    from google.colab import drive
+    IN_COLAB = True
+except ImportError:
+    print("Not running in Colab environment. Google Drive integration disabled.")
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+def convert_sets_to_lists_recursive(obj):
+    if isinstance(obj, set):
+        return list(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_sets_to_lists_recursive(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_sets_to_lists_recursive(item) for item in obj]
+    else:
+        return obj
+
+def log_event(msg):
+    stamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+    entry = f"{stamp} {msg}"
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(entry + "\n")
+    except Exception as e:
+        print(f"Error writing to log file: {e}")
+    print(entry)
+
+def get_file_hash(fname):
+    try:
+        with open(fname, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except Exception as e:
+        log_event(f"Error computing file hash: {e}")
+        return "hash_error"
+
+def find_free_port(start_port=5000, max_port=9000):
+    for port in range(start_port, max_port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(('localhost', port)) != 0:
+                return port
+    return None
+
+def improved_url_filter(url, domain_stats, DOMAIN_BLACKLIST, MAX_QUERY_LENGTH=150, ERROR_RATE_THRESHOLD=0.8, TRAP_PATHS=['/login', '/signup', '/cart', '/checkout']):
+    parsed = urlparse(url)
+    domain = parsed.netloc
+    if domain in DOMAIN_BLACKLIST:
+        return False
+    if len(parsed.query) > MAX_QUERY_LENGTH:
+        return False
+    if domain_stats.get(domain, {}).get("error_rate", 0) > ERROR_RATE_THRESHOLD:
+        return False
+    path = parsed.path.lower()
+    if any(trap in path for trap in TRAP_PATHS):
+        return False
+    return True
+
+def enhanced_link_discovery(html_content, base_url):
+    from bs4 import BeautifulSoup
+    try:
+        soup = BeautifulSoup(html_content, "html.parser")
+        links = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            if not href or href.startswith(('#', 'javascript:', 'mailto:')):
+                continue
+            context = ""
+            parent = a.parent
+            if parent and parent.name in ['p', 'div', 'li', 'td']:
+                context = parent.get_text(strip=True)
+            else:
+                next_sibling = a.next_sibling
+                prev_sibling = a.previous_sibling
+                if next_sibling and isinstance(next_sibling, str):
+                    context += next_sibling.strip()
+                if prev_sibling and isinstance(prev_sibling, str):
+                    context = prev_sibling.strip() + " " + context
+            anchor_text = a.get_text(strip=True)
+            if not anchor_text or (len(anchor_text) < 3 and anchor_text.lower() not in ['go', 'up']):
+                continue
+            full_url = urljoin(base_url, href)
+            quality_score = 0.5
+            if len(anchor_text) > 10:
+                quality_score += 0.2
+            if len(context) > 100:
+                quality_score += 0.1
+            nav_terms = ['next', 'prev', 'previous', 'login', 'sign up', 'register']
+            if any(term in anchor_text.lower() for term in nav_terms):
+                quality_score -= 0.2
+            parsed = urlparse(full_url)
+            if parsed.scheme not in ['http', 'https']:
+                continue
+            if len(parsed.query) > 100:
+                continue
+            if any(ext in parsed.path.lower() for ext in ['.jpg', '.png', '.gif', '.pdf', '.zip']):
+                continue
+            links.append({'url': full_url, 'anchor_text': anchor_text, 'context': context[:100], 'quality_score': quality_score})
+        links.sort(key=lambda x: x['quality_score'], reverse=True)
+        return [link['url'] for link in links], links
+    except Exception as e:
+        log_event(f"Error in enhanced link discovery: {e}")
+        return [], []
+
+def async_cache(func):
+    cache = {}
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        key = (args, frozenset(kwargs.items()))
+        if key in cache:
+            return cache[key]
+        result = await func(*args, **kwargs)
+        cache[key] = result
+        return result
+    return wrapper
+
+def chunk_content(content, min_length=100, max_length=500):
+    paragraphs = re.split(r'\n\s*\n', content)
+    chunks = []
+    for para in paragraphs:
+        para = para.strip()
+        if len(para) < min_length:
+            continue
+        if len(para) > max_length:
+            for i in range(0, len(para), max_length):
+                chunk = para[i:i+max_length]
+                if len(chunk) >= min_length:
+                    chunks.append(chunk)
+            else:
+                chunks.append(para)
+        else:
+            chunks.append(para)
+    return chunks
+
+def compute_novelty(embedding, memory_embeddings):
+    import numpy as np
+    if not memory_embeddings:
+        return 1.0
+    similarities = [np.dot(embedding, mem) / (np.linalg.norm(embedding)*np.linalg.norm(mem)+1e-8)
+                    for mem in memory_embeddings]
+    return 1.0 - max(similarities)
+
+async def async_get(url, headers, timeout, retries=3):
+    for attempt in range(retries):
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, lambda: requests.get(url, timeout=timeout, headers=headers))
+            return response
+        except requests.exceptions.RequestException as e:
+            log_event(f"Async GET error on attempt {attempt+1} for {url}: {e}")
+            if attempt < retries - 1:
+                await asyncio.sleep(1)
+        except Exception as e:
+            log_event(f"Unexpected error during async GET for {url} on attempt {attempt+1}: {e}")
+            if attempt < retries - 1:
+                await asyncio.sleep(1)
+    log_event(f"All {retries} retries failed for {url}. Returning None.")
+    return None
+
+def perform_real_interaction(url):
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.set_page_load_timeout(30)  # Increased page load timeout
+        driver.get(url)
+        log_event(f"Selenium: Navigated to {url}")
+
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body"))) # Increased WebDriverWait timeout
+
+        forms = driver.find_elements(By.TAG_NAME, "form")
+        if forms:
+            log_event(f"Selenium: Found {len(forms)} form(s) on the page.")
+            for form in forms:
+                inputs = form.find_elements(By.TAG_NAME, "input")
+                for input_field in inputs:
+                    input_type = input_field.get_attribute("type")
+                    name = input_field.get_attribute("name")
+                    if input_type in ["text", "email"]:
+                        try: # Added try-except for input filling
+                            input_field.clear()
+                            dummy_value = "test@example.com" if input_type == "email" else "test"
+                            input_field.send_keys(dummy_value)
+                            log_event(f"Selenium: Filled input '{name}' with '{dummy_value}'.")
+                        except Exception as e_input:
+                            log_event(f"Selenium: Error filling input '{name}': {e_input}")
+                    elif input_type == "password":
+                        try: # Added try-except for password filling
+                            input_field.clear()
+                            input_field.send_keys("dummyPassword123")
+                            log_event(f"Selenium: Filled password field '{name}' with dummy value.")
+                        except Exception as e_password:
+                            log_event(f"Selenium: Error filling password field '{name}': {e_password}")
+                    elif input_type == "submit":
+                        try: # Added try-except for submit button click
+                            input_field.click()
+                            log_event("Selenium: Clicked a submit input.")
+                        except Exception as e_submit_click:
+                            log_event(f"Selenium: Failed to click submit input: {e_submit_click}")
+                try: # Keep try-except for form submission
+                    form.submit()
+                    log_event("Selenium: Submitted the form using form.submit().")
+                except Exception as e_form_submit:
+                    log_event(f"Selenium: Could not submit form: {e_form_submit}")
+        else:
+            log_event("Selenium: No forms found on the page.")
+
+        buttons = driver.find_elements(By.TAG_NAME, "button")
+        for button in buttons:
+            text = button.text.lower()
+            if any(kw in text for kw in ["submit", "sign in", "login"]):
+                try: # Added try-except for button click
+                    button.click()
+                    log_event(f"Selenium: Clicked button with text '{text}'.")
+                except Exception as e_button_click:
+                    log_event(f"Selenium: Failed to click button '{text}': {e_button_click}")
+
+        time.sleep(3)
+        driver.quit()
+        log_event("Selenium: Interaction completed and driver quit.")
+    except Exception as e:
+        log_event(f"Selenium: Error during real interaction with {url}: {e}")
+
+
+
+
+# --- ADD THESE LINES ---
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+log_event(f"PyTorch will use device: {device}")
+if torch.cuda.is_available():
+    device_name = torch.cuda.get_device_name(0)
+    log_event(f"CUDA Device Name: {device_name}")
+else:
+    log_event("CUDA is not available. Running on CPU.")
+# --- END ADDED LINES ---
+
+
+# =============================================================================
+# MODEL DEFINITION
+# =============================================================================
+import torch
+import torch.nn as nn
+
+class FractalLayer(nn.Module):
+    def __init__(self, embed_dim):
+        super().__init__()
+        self.fractal_scale = nn.Parameter(torch.tensor(1.0))
+        self.temperature = nn.Parameter(torch.tensor(1.0))
+        self.linear = nn.Linear(embed_dim, embed_dim)
+    def forward(self, x):
+        return x + self.fractal_scale * torch.tanh(self.linear(x) / self.temperature)
+
+class StudentModel(nn.Module):
+    def __init__(self, vocab_size=30522, embed_dim=256, num_layers=7):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.layers = nn.ModuleList([FractalLayer(embed_dim) for _ in range(num_layers)])
+        self.norm = nn.LayerNorm(embed_dim)
+        self.output_layer = nn.Linear(embed_dim, 2)
+    def forward(self, x):
+        x = x.long()
+        x = self.embedding(x)
+        for layer in self.layers:
+            x = layer(x)
+        x = self.norm(x)
+        x = self.output_layer(x)
+        return x
+    def expand_architecture(self):
+        new_layer = FractalLayer(self.embedding.embedding_dim)
+        self.layers.append(new_layer)
+        log_event("Model architecture expanded: new FractalLayer added.")
+    def contract_architecture(self, min_layers=3):
+        if len(self.layers) > min_layers:
+            self.layers = self.layers[:-1]
+            log_event("Model architecture contracted: removed the last FractalLayer.")
+        else:
+            log_event("Contract architecture skipped: minimum layers reached.")
+
+def load_student_model():
+    try:
+        log_event(f"Loading student model from {MODEL_PATH}...")
+        checkpoint = torch.load(MODEL_PATH, map_location="cpu") # Load to CPU first (important for compatibility)
+        if isinstance(checkpoint, dict):
+            state_dict = checkpoint.get("model_state_dict", checkpoint)
+            model = StudentModel()
+            model.load_state_dict(state_dict, strict=True)
+            log_event("Student model loaded successfully from state_dict.")
+        else:
+            model = checkpoint
+            log_event("Student model loaded from a full saved model object (not a dict).")
+        model.to(device)  # <---- MOVE MODEL TO CUDA (or CPU if CUDA not available)
+        log_event(f"Model loaded successfully from: {MODEL_PATH}")
+        log_event(f"Model SHA-256: {get_file_hash(MODEL_PATH)}")
+        return model
+    except Exception as e:
+        log_event(f"Failed to load student model from {MODEL_PATH}: {e}")
+        return None
+# =============================================================================
+# DOMAIN INTELLIGENCE
+# =============================================================================
+class DomainIntelligence:
+    def __init__(self):
+        self.domain_stats = {}
+        self.visit_history = []
+    def register_visit(self, url, success, content_length, links_found):
+        domain = urlparse(url).netloc
+        timestamp = datetime.now().isoformat()
+        if domain not in self.domain_stats:
+            self.domain_stats[domain] = {"visits": 0, "successful_visits": 0, "content_total": 0, "links_found": 0, "error_rate": 0}
+        stats = self.domain_stats[domain]
+        stats["visits"] += 1
+        if success:
+            stats["successful_visits"] += 1
+            stats["content_total"] += content_length
+            stats["links_found"] += links_found
+        stats["error_rate"] = 1.0 - (stats["successful_visits"] / stats["visits"])
+        self.visit_history.append({"url": url, "domain": domain, "timestamp": timestamp, "success": success, "content_length": content_length, "links_found": links_found})
+
+# =============================================================================
+# MEMORY MODULES
+# =============================================================================
+from collections import deque
+import numpy as np
+from sentence_transformers import SentenceTransformer
+SEMANTIC_MODEL = SentenceTransformer('all-mpnet-base-v2')
+
+class SemanticMemoryModule:
+    def __init__(self):
+        self.semantic_memory = {}  # {url: {chunk_id: embedding_list}}
+    def store_semantic_content(self, url, content):
+        try:
+            chunks = chunk_content(content)
+            chunk_embeddings = {}
+            for i, chunk in enumerate(chunks):
+                embedding_vector = SEMANTIC_MODEL.encode(chunk)
+                chunk_embeddings[f"chunk_{i}"] = embedding_vector.tolist()
+            self.semantic_memory[url] = chunk_embeddings
+            log_event(f"Stored semantic content vectors for {url}, {len(chunks)} chunks, dim={SEMANTIC_MEMORY_DIM}.")
+        except Exception as e:
+            log_event(f"Error storing semantic content for {url}: {e}")
+    def query_semantic_memory(self, query_text, top_k=5):
+        query_embedding = SEMANTIC_MODEL.encode(query_text)
+        results = []
+        for url, chunk_embeddings in self.semantic_memory.items():
+            for chunk_key, embedding_list in chunk_embeddings.items():
+                embedding = np.array(embedding_list)
+                similarity = np.dot(query_embedding, embedding) / (np.linalg.norm(query_embedding)*np.linalg.norm(embedding)+1e-8)
+                if similarity > SIMILARITY_THRESHOLD:
+                    results.append({'url': url, 'chunk': chunk_key, 'similarity': similarity.item()})
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        return results[:top_k]
+
+class EpisodicMemoryModule:
+    def __init__(self):
+        self.episodic_memory = deque(maxlen=500)
+    def record_episode(self, episode_data):
+        self.episodic_memory.append(episode_data)
+    def recall_episodic_experience(self, event_context, context_features=None, top_k=5):
+        if not self.episodic_memory:
+            return "No episodic memory yet."
+        query_context_embedding = self._encode_context(event_context, context_features)
+        results = []
+        for episode in self.episodic_memory:
+            episode_embedding = self._get_episode_embedding(episode)
+            if episode_embedding is not None:
+                similarity = np.dot(query_context_embedding, episode_embedding) / (np.linalg.norm(query_context_embedding)*np.linalg.norm(episode_embedding)+1e-8)
+                if similarity > SIMILARITY_THRESHOLD:
+                    results.append({'episode': episode, 'similarity': similarity.item()})
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        return results[:top_k]
+    def _encode_context(self, event_context, context_features):
+        context_text = str(event_context)
+        if context_features:
+            context_text += " " + " ".join([str(f) for f in context_features.values()])
+        return SEMANTIC_MODEL.encode(context_text)
+    def _get_episode_embedding(self, episode):
+        episode_text = str(episode)
+        return SEMANTIC_MODEL.encode(episode_text)
+
+class AdaptiveLearningSystem:
+    def __init__(self, base_model, initial_lr=1e-4):
+        self.model = base_model
+        self.base_lr = initial_lr
+        import torch.optim as optim
+        self.optimizers = {
+            "adam": optim.Adam(self.model.parameters(), lr=initial_lr),
+            "sgd": optim.SGD(self.model.parameters(), lr=initial_lr, momentum=0.9),
+            "rmsprop": optim.RMSprop(self.model.parameters(), lr=initial_lr)
+        }
+        self.current_optimizer = "adam"
+        self.content_quality_history = []
+        self.learning_schedule = {
+            "high_quality": {"lr_factor": 1.2, "optimizer": "adam"},
+            "medium_quality": {"lr_factor": 1.0, "optimizer": "adam"},
+            "low_quality": {"lr_factor": 0.8, "optimizer": "sgd"},
+            "exploratory": {"lr_factor": 0.5, "optimizer": "rmsprop"}
+        }
+        self.loss_history = deque(maxlen=30)
+    def adapt_learning_approach(self, content):
+        quality = "high_quality" if len(content) > 1000 else "medium_quality"
+        score = min(1.0, len(content) / 10000)
+        schedule = self.learning_schedule[quality]
+        for param_group in self.optimizers[self.current_optimizer].param_groups:
+            param_group['lr'] = self.base_lr * schedule["lr_factor"]
+        if self.current_optimizer != schedule["optimizer"]:
+            self.current_optimizer = schedule["optimizer"]
+            log_event(f"Switched learning optimizer to {self.current_optimizer} based on content quality")
+        return self.optimizers[self.current_optimizer], quality, score
+    def get_current_optimizer(self):
+        return self.optimizers[self.current_optimizer]
+    def _basic_training(self, content, optimizer):
+        if not content or len(content) < 128:
+            log_event("Text too short to train on.")
+            return 0.0
+        if len(content) > MAX_CONTENT_LENGTH:
+            log_event(f"Text too large ({len(content)} chars), truncating.")
+            content = content[:MAX_CONTENT_LENGTH]
+        n_chunks = max(1, min(BATCH_SIZE, len(content) // 64))
+        batch_tokens = []
+        for i in range(n_chunks):
+            start_idx = int(i * (len(content) - 128) / max(1, n_chunks-1))
+            chunk = content[start_idx:start_idx+128]
+            tokens = [ord(c) % 256 for c in chunk]
+            tokens += [0] * (128 - len(tokens))
+            batch_tokens.append(tokens)
+        import torch
+        x = torch.tensor(batch_tokens, dtype=torch.long)
+        output = self.model(x)
+        target = output.mean(dim=1, keepdim=True).expand_as(output)
+        loss = nn.functional.mse_loss(output, target)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        return loss.item()
+    def _advanced_training(self, content, optimizer):
+        log_event("Using advanced training for high-quality content.")
+        if len(content) > MAX_CONTENT_LENGTH:
+            content = content[:MAX_CONTENT_LENGTH]
+        content = re.sub(r'<[^>]+>', ' ', content)
+        content = re.sub(r'\s+', ' ', content).strip()
+        if len(content) < 1000:
+            return self._basic_training(content, optimizer)
+        chunks = []
+        paragraphs = re.split(r'\n\s*\n', content)
+        if len(paragraphs) > 3:
+            sample_paragraphs = random.sample(paragraphs, min(BATCH_SIZE, len(paragraphs)))
+            for para in sample_paragraphs:
+                if len(para) > 64:
+                    chunks.append(para[:128])
+        else:
+            sentences = re.split(r'(?<=[.!?])\s+', content)
+            if len(sentences) > 5:
+                sentence_groups = []
+                current_group = ""
+                for sentence in sentences:
+                    if len(current_group) + len(sentence) < 120:
+                        current_group += sentence + " "
+                    else:
+                        if current_group:
+                            sentence_groups.append(current_group)
+                        current_group = sentence + " "
+                if current_group:
+                    sentence_groups.append(current_group)
+                sample_groups = random.sample(sentence_groups, min(BATCH_SIZE, len(sentence_groups)))
+                chunks = [group[:128] for group in sample_groups]
+            else:
+                return self._basic_training(content, optimizer)
+        if not chunks:
+            return self._basic_training(content, optimizer)
+        batch_tokens = []
+        for chunk in chunks:
+            tokens = [ord(c) % 256 for c in chunk]
+            tokens += [0] * (128 - len(tokens))
+            batch_tokens.append(tokens)
+        import torch
+        x = torch.tensor(batch_tokens, dtype=torch.long)
+        total_loss = 0
+        training_steps = 2
+        for _ in range(training_steps):
+            output = self.model(x)
+            if _ == 0:
+                target = output.mean(dim=1, keepdim=True).expand_as(output)
+            else:
+                target = output.mean(dim=1, keepdim=True).expand_as(output) + torch.randn_like(output) * 0.1
+            loss = nn.functional.mse_loss(output, target)
+            total_loss += loss.item()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        return total_loss / training_steps
+    def train_adaptively(self, content, advanced=False):
+        optimizer, quality, score = self.adapt_learning_approach(content)
+        if quality == "exploratory" and score < 0.15:
+            log_event(f"Skipping training on low-quality content (score: {score:.2f})")
+            return 0.0
+        batch_content = [content]
+        total_loss = 0.0
+        individual_losses = []
+        for train_content in batch_content:
+            if advanced and quality == "high_quality":
+                loss_val = self._advanced_training(train_content, optimizer)
+            else:
+                loss_val = self._basic_training(train_content, optimizer)
+            total_loss += loss_val
+            individual_losses.append(loss_val)
+        avg_loss = total_loss / max(1, len(batch_content))
+        self.loss_history.extend(individual_losses)
+        return avg_loss
+
+class AdaptiveLearningSystemModified(AdaptiveLearningSystem):
+    def __init__(self, base_model, initial_lr=1e-4):
+        super().__init__(base_model, initial_lr)
+    def train_adaptively(self, content, advanced=False):
+        return super().train_adaptively(content, advanced)
+
+# =============================================================================
+# META-LEARNING STUB
+# =============================================================================
+def maml_meta_update(model, optimizer, experiences):
+    log_event("Performing a meta-learning (MAML) update [stub].")
+    return 0.0
+
+# =============================================================================
+# SELF-MODIFICATION & CODE EVOLUTION
+# =============================================================================
+def apply_code_improvement(improvement, agent_code):
+    if not improvement:
+        return agent_code, False, "No valid improvement provided"
+    description = improvement.get("description", "Code improvement")
+    code = improvement.get("code", "")
+    integration_points = improvement.get("integration_points", [])
+    if not code or not integration_points:
+        return agent_code, False, "Incomplete improvement specification"
+    modified_code = agent_code
+    successfully_integrated = False
+    integration_notes = []
+    for integration_point in integration_points:
+        pattern = r'(class|def)\s+' + re.escape(integration_point) + r'\s*\([^)]*\):'
+        match = re.search(pattern, agent_code)
+        if not match:
+            integration_notes.append(f"Could not find integration point: {integration_point}")
+            continue
+        start_pos = match.end()
+        next_lines = agent_code[start_pos:].split('\n')
+        indent_level = 0
+        for line in next_lines:
+            if line.strip() and not line.strip().startswith('#'):
+                indent_level = len(line) - len(line.lstrip())
+                break
+        if indent_level == 0:
+            integration_notes.append(f"Could not determine indent level for {integration_point}")
+            continue
+        indent_str = ' ' * indent_level
+        insertion_code = code.strip()
+        insertion_code = '\n' + indent_str + "# Added code improvement: " + description + '\n' + \
+                         '\n'.join(indent_str + line for line in insertion_code.split('\n'))
+        modified_code = modified_code[:start_pos] + insertion_code + modified_code[start_pos:]
+        integration_notes.append(f"Inserted code at {integration_point}")
+        successfully_integrated = True
+    results = {
+        "successfully_integrated": successfully_integrated,
+        "integration_notes": integration_notes,
+        "modification_size": len(modified_code) - len(agent_code)
+    }
+    return modified_code, successfully_integrated, results
+
+def generate_code_improvement(area, agent, templates):
+    base_improvements = {
+        "url_selection": {
+            "description": "Enhanced URL filtering with domain intelligence",
+            "code": templates["url_filter"],
+            "integration_points": ["free_will.select_url", "free_will.prune_memory"]
+        },
+        "link_discovery": {
+            "description": "Improved link discovery with content analysis",
+            "code": templates["enhanced_link_discovery"],
+            "integration_points": ["free_will.discover_links"]
+        },
+        "domain_diversity": {
+            "description": "Domain diversity enhancement with categorization",
+            "code": templates["domain_intelligence"],
+            "integration_points": ["AutonomousAgent.__init__", "free_will.select_url"]
+        },
+        "training_efficiency": {
+            "description": "Adaptive learning system with content quality assessment",
+            "code": templates["adaptive_learning"],
+            "integration_points": ["train_on_experience", "AutonomousAgent.__init__"]
+        },
+        "adaptation_strategy": {
+            "description": "Self-tuning exploration/exploitation strategy",
+            "code": "# Adaptive exploration strategy code would go here",
+            "integration_points": ["free_will.select_url", "AutonomousAgent.__init__"]
+        }
+    }
+    if area not in base_improvements:
+        return None
+    improvement = base_improvements[area]
+    if area == "url_selection" and hasattr(agent, "stats"):
+        if len(agent.stats.get("domains_visited", [])) > 20:
+            improvement["code"] = improvement["code"].replace(
+                "# Prioritize educational and reference domains",
+                "# Prioritize educational, reference domains, and domains with past success\n"
+                "    domain_success_rate = domain_stats.get(domain, {}).get(\"rate\", 0)\n"
+                "    if domain_success_rate > 0.7:\n"
+                "        return True\n"
+                "    # Prioritize educational and reference domains"
+            )
+    return improvement
+
+def self_evolve(agent, code_templates=None):
+    performance_data = analyze_agent_performance(agent)
+    if performance_data["status"] != "success":
+        log_event(f"Cannot evolve: {performance_data['status']}")
+        return False, "Insufficient performance data for evolution"
+    improvement_areas = identify_improvement_areas(performance_data)
+    if not improvement_areas:
+        log_event("No improvement areas identified")
+        return False, "No improvement areas identified"
+    target_area = random.choice(improvement_areas)
+    log_event(f"Selected improvement area: {target_area}")
+    improvement = generate_code_improvement(target_area, agent, code_templates)
+    if not improvement:
+        log_event(f"Could not generate improvement for {target_area}")
+        return False, f"Failed to generate improvement for {target_area}"
+    try:
+        try:
+            code_file = __file__
+        except NameError:
+            code_file = "main.py"
+        with open(code_file, "r", encoding="utf-8") as f:
+            current_code = f.read()
+    except Exception as e:
+        log_event(f"Could not read source file: {e}")
+        return False, f"Failed to read source file: {e}"
+    modified_code, success, results = apply_code_improvement(improvement, current_code)
+    if not success:
+        log_event(f"Failed to apply improvement: {results}")
+        return False, f"Failed to apply improvement: {results}"
+    try:
+        backup_file = f"{code_file}.bak"
+        with open(backup_file, "w", encoding="utf-8") as f:
+            f.write(current_code)
+        with open(code_file, "w", encoding="utf-8") as f:
+            f.write(modified_code)
+        log_event(f"Successfully evolved code! Backup created at {backup_file}")
+        log_event(f"Evolution details: {results}")
+        return True, f"Successfully evolved code: {target_area}"
+    except Exception as e:
+        log_event(f"Failed to write evolved code: {e}")
+        return False, f"Failed to write evolved code: {e}"
+
+class MetaEvolutionEngine:
+    def __init__(self):
+        self.evolution_history = []
+        self.capabilities = set(["code_evolution", "goal_management", "self_assessment"])
+        self.evolution_counter = 0
+        self.last_evolution_time = None
+        self.evolution_interval = 50
+        self.strategy_history = []
+    def register_evolution_result(self, target_system, success, details):
+        timestamp = datetime.now().isoformat()
+        record = {
+            "timestamp": timestamp,
+            "target_system": target_system,
+            "success": success,
+            "details": details,
+            "evolution_id": self.evolution_counter
+        }
+        self.evolution_history.append(record)
+        self.evolution_counter += 1
+        self.last_evolution_time = timestamp
+    def select_evolution_target(self, agent):
+        performance = analyze_agent_performance(agent)
+        if performance["status"] != "success":
+            return "code_evolution"
+        metrics = performance["metrics"]
+        target_scores = {"code_evolution": 1.0, "goal_management": 0.8, "self_assessment": 0.6}
+        if metrics["success_trend"] < 0:
+            target_scores["code_evolution"] += 0.3
+        if metrics["domain_diversity"] < 15:
+            target_scores["goal_management"] += 0.2
+        if metrics["avg_time_between_actions"] > 5:
+            target_scores["code_evolution"] += 0.2
+        recent_evolutions = self.evolution_history[-5:] if len(self.evolution_history) >= 5 else self.evolution_history
+        for record in recent_evolutions:
+            target = record["target_system"]
+            if target in target_scores:
+                if not record["success"]:
+                    target_scores[target] -= 0.1
+                if len(self.evolution_history) > 0 and record == self.evolution_history[-1]:
+                    target_scores[target] -= 0.2
+        return max(target_scores.items(), key=lambda x: x[1])[0]
+    def should_attempt_evolution(self, agent):
+        action_count = len(agent.action_log)
+        if self.last_evolution_time is None:
+            return action_count >= 20
+        last_evolution = datetime.fromisoformat(self.last_evolution_time)
+        now = datetime.now()
+        hours_since_evolution = (now - last_evolution).total_seconds() / 3600
+        return hours_since_evolution >= 1 and action_count >= self.evolution_interval
+    def evolve_system(self, agent, code_templates):
+        if not self.should_attempt_evolution(agent):
+            return False, "Evolution not due yet"
+        target = self.select_evolution_target(agent)
+        log_event(f"Meta-evolution targeting: {target}")
+        result = False
+        details = ""
+        if target == "code_evolution":
+            result, details = self_evolve(agent, code_templates)
+        elif target == "goal_management":
+            try:
+                if hasattr(agent, "planner"):
+                    planner = agent.planner
+                    if hasattr(planner, "long_term_goals"):
+                        new_goal = {
+                            "id": f"generated_goal_{int(time.time())}",
+                            "description": f"Optimize learning across knowledge domains",
+                            "priority": 0.85
+                        }
+                        planner.long_term_goals.append(new_goal)
+                        planner.long_term_goals.sort(key=lambda x: x.get("priority", 0), reverse=True)
+                        log_event(f"Added new goal to planner: {new_goal['description']}")
+                        result, details = True, "Added new long-term goal to planner"
+                    else:
+                        result, details = False, "Could not identify planner goals"
+                else:
+                    result, details = False, "Agent has no planner"
+            except Exception as e:
+                log_event(f"Error evolving goal management: {e}")
+                result, details = False, f"Error evolving goal management: {e}"
+        elif target == "self_assessment":
+            try:
+                new_strategy = {
+                    "name": f"adaptive_strategy_{len(self.strategy_history) + 1}",
+                    "description": "Dynamically balance exploration and exploitation",
+                    "created": datetime.now().isoformat(),
+                    "parameters": {
+                        "exploration_rate": 0.4 + random.uniform(-0.1, 0.1),
+                        "learning_rate_factor": 0.9 + random.uniform(-0.1, 0.1),
+                        "domain_diversity_target": 15 + random.randint(-3, 5),
+                        "content_quality_threshold": 0.6 + random.uniform(-0.1, 0.1)
+                    }
+                }
+                self.strategy_history.append(new_strategy)
+                log_event(f"Generated new adaptive strategy: {new_strategy['name']}")
+                if hasattr(agent, "memory"):
+                    if "adaptive_strategies" not in agent.memory:
+                        agent.memory["adaptive_strategies"] = []
+                    agent.memory["adaptive_strategies"] = new_strategy["name"]
+                    log_event(f"Applied new strategy to agent: {new_strategy['name']}")
+                    result, details = True, f"Created and applied new strategy: {new_strategy['name']}"
+                else:
+                    result, details = False, "Agent does not have appropriate memory structure"
+            except Exception as e:
+                log_event(f"Error evolving self-assessment: {e}")
+                result, details = False, f"Error evolving self_assessment: {e}"
+        self.register_evolution_result(target, result, details)
+        return result, f"{target}: {details}"
+
+# =============================================================================
+# AI MIND & INTELLIGENCE
+# =============================================================================
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+class ReasoningEngine:
+    def reason(self, context):
+        recent = context.get("recent_actions", [])
+        if not recent:
+            return "No prior actions; initiate exploration."
+        lengths = [a.get("content_length", 0) for a in recent if a.get("content_length", 0) > 0]
+        avg_length = sum(lengths) / len(lengths) if lengths else 0
+        texts = [a.get("content", "") for a in recent if a.get("content", "")]
+        avg_similarity = self._calculate_tfidf_similarity(texts) if texts and len(texts) > 1 else 0
+        semantic = context.get("semantic_query_results", [])
+        semantic_strength = semantic[0].get("similarity", 0) if semantic else 0
+        if avg_length < 500:
+            return "Recent actions have low content length; suggest exploration for richer data."
+        if avg_similarity > 0.9:
+            return "High similarity among recent actions; diversify the exploration strategy."
+        if semantic_strength > 0.8:
+            return "Strong semantic matches found; focus on refining current approach."
+        return "Maintain current strategy with minor adjustments."
+    def _calculate_tfidf_similarity(self, texts):
+        vectorizer = TfidfVectorizer()
+        tfidf = vectorizer.fit_transform(texts)
+        cosine_sim = (tfidf * tfidf.T).toarray()
+        import numpy as np
+        np.fill_diagonal(cosine_sim, 0)
+        return np.mean(cosine_sim)
+
+class CausalReasoningModule:
+    def infer_causality(self, information):
+        causal_keywords = ["because", "therefore", "thus", "consequently", "due to", "as a result", "hence", "leads to", "results in", "so that", "causes", "effects", "origins from", "stems from", "attributable to", "in response to"]
+        pattern = r'\b(?:' + '|'.join(map(re.escape, causal_keywords)) + r')\b'
+        matches = re.findall(pattern, information.lower())
+        if matches:
+            unique_matches = sorted(set(matches))
+            return f"Causal connectives detected: {', '.join(unique_matches)}"
+        return "No clear causal relationships detected."
+
+class TheoryOfMindModule:
+    def infer_intentions(self, website_structure):
+        url = website_structure.get("url", "")
+        content_sample = website_structure.get("content_sample", "")
+        domain = urlparse(url).netloc.lower()
+        if any(kw in url.lower() for kw in ["login", "signup", "account", "auth", "register"]):
+            return "The website is likely focused on user account management."
+        if any(kw in url.lower() for kw in ["shop", "cart", "buy", "store", "checkout", "purchase"]):
+            return "The website appears to be an e-commerce platform."
+        if "news" in domain or "article" in content_sample.lower()[:500]:
+            return "The website is likely a news portal or content provider."
+        if "edu" in domain or "research" in content_sample.lower()[:500]:
+            return "The website appears to be academic or research oriented."
+        positive_words = {"innovative", "exciting", "advanced", "cutting-edge", "excellent", "best", "top", "amazing"}
+        negative_words = {"error", "failure", "bug", "problem", "outage", "bad", "worst", "terrible"}
+        words = re.findall(r'\w+', content_sample.lower()[:1000])
+        pos_count = sum(1 for word in words if word in positive_words)
+        neg_count = sum(1 for word in words if word in negative_words)
+        if pos_count > neg_count + 3:
+            return "The website's content is positive; likely promotional or informative."
+        elif neg_count > pos_count + 3:
+            return "The website's content is negative; possibly cautionary or reporting issues."
+        return "The website's purpose is ambiguous; likely general information."
+
+class MetaLearningModule:
+    def optimize_learning_process(self, learning_history):
+        if not learning_history or len(learning_history) < 5:
+            return "Insufficient history for meta-learning."
+        recent = learning_history[-5:]
+        overall_avg = sum(learning_history) / len(learning_history)
+        avg_recent = sum(recent) / len(recent)
+        if avg_recent > overall_avg * 1.15:
+            return f"Loss trend rising (recent {avg_recent:.4f} > overall {overall_avg:.4f}). Reduce learning rate by 15%."
+        elif avg_recent < overall_avg * 0.85:
+            return f"Loss trend decreasing (recent {avg_recent:.4f} < overall {overall_avg:.4f}). Increase learning rate by 15%."
+        else:
+            return "Loss trend stable; maintain current learning rate."
+
+class IntrinsicMotivationModule:
+    def generate_intrinsic_goals(self, agent_state, environment):
+        stats = agent_state.get("agent_stats", {})
+        pages = stats.get("total_pages", 0)
+        diversity = len(stats.get("domains_visited", [])) if isinstance(stats.get("domains_visited"), (set, list)) else 0
+        if diversity < 5:
+            return "Increase domain diversity by exploring new websites."
+        if pages < 10:
+            return "Collect more data by visiting additional pages."
+        return "Maintain current exploration; sufficient data collected."
+
+class AutonomousMind:
+    def __init__(self, agent, model):
+        self.agent = agent
+        self.model = model
+        self.thought_history = []
+        self.decision_context = {}
+        self.intuition_cache = {}
+        self.thinking_modes = ["fast", "analytical", "creative", "critical"]
+        self.current_mode = "fast"
+        self.mode_rotation_counter = 0
+
+    def record_thought(self, thought_type, content):
+        timestamp = datetime.now().isoformat()
+        self.thought_history.append({"type": thought_type, "content": content, "timestamp": timestamp})
+        if len(self.thought_history) > 1000:
+            self.thought_history = self.thought_history[-1000:]
+
+    def generate_context(self, observation):
+        self.decision_context.update({
+            "current_time": datetime.now().isoformat(),
+            "observation": observation,
+            "recent_actions": self.agent.action_log[-5:] if len(self.agent.action_log) >= 5 else self.agent.action_log,
+            "domain_stats": self.agent.stats.get("domain_stats", {})
+        })
+        if len(self.decision_context) > 20:
+            keys_to_keep = ["current_time", "observation", "recent_actions", "domain_stats", "goals", "current_strategy", "intuition"]
+            self.decision_context = {k: v for k, v in self.decision_context.items() if k in keys_to_keep}
+        return self.decision_context
+
+    def rotate_thinking_mode(self):
+        self.mode_rotation_counter += 1
+        if self.mode_rotation_counter % 10 == 0:
+            self.current_mode = random.choice(self.thinking_modes)
+        elif random.random() < 0.2:
+            self.current_mode = random.choice(self.thinking_modes)
+        log_event(f"Current thinking mode: {self.current_mode}")
+        return self.current_mode
+
+    def think(self, observation):
+        context = self.generate_context(observation)
+        thinking_mode = self.rotate_thinking_mode()
+        if thinking_mode == "fast":
+            return self._fast_intuitive_thinking(context)
+        elif thinking_mode == "analytical":
+            return self._analytical_thinking(context)
+        elif thinking_mode == "creative":
+            return self._creative_thinking(context)
+        elif thinking_mode == "critical":
+            return self._critical_thinking(context)
+        else:
+            return self._fast_intuitive_thinking(context)
+
+    def _fast_intuitive_thinking(self, context):
+        """Fast, intuitive decision making based on recent success or randomness."""
+        context_hash = hash(str(context.get("observation", {})))
+        if context_hash in self.intuition_cache:
+            cached_decision = self.intuition_cache[context_hash]
+            self.record_thought("intuition_cache_hit", f"Retrieved decision from intuition cache: {cached_decision}")
+            return cached_decision
+
+        recent_actions = context.get("recent_actions", [])
+        if recent_actions:
+            successful_actions = [a for a in recent_actions if a.get("content_length", 0) > 1000]
+            if successful_actions:
+                action_type = successful_actions[-1].get("action", "expand")
+                decision = {"action_type": action_type, "reasoning": "Repeating recent successful action (intuition)"}
+                self.intuition_cache[context_hash] = decision
+                self.record_thought("intuition", f"Fast decision: {decision}")
+                return decision
+
+        base_actions = ["adapt", "search", "expand", "evaluate", "reconnect"]
+        action_type = random.choice(base_actions)
+        decision = {"action_type": action_type, "reasoning": "Random intuitive choice (default)"}
+        self.record_thought("intuition", f"Random intuitive decision: {decision}")
+        return decision
+
+    def _analytical_thinking(self, context):
+        """Analytical decision making based on performance of recent actions."""
+        recent_actions = context.get("recent_actions", [])
+        action_types = {}
+        for action in recent_actions:
+            a_type = action.get("action", "")
+            if a_type not in action_types:
+                action_types[a_type] = {"count": 0, "content": 0, "links": 0}
+            stats = action_types[a_type]
+            stats["count"] += 1
+            stats["content"] += action.get("content_length", 0)
+            stats["links"] += action.get("links_discovered", 0)
+
+        action_performance = {}
+        for a_type, stats in action_types.items():
+            if stats["count"] > 0:
+                avg_content = stats["content"] / stats["count"]
+                avg_links = stats["links"] / stats["count"]
+                action_performance[a_type] = (avg_content / 1000) + (avg_links * 2) # Heuristic scoring
+
+        self.record_thought("analysis", f"Action performance analysis: {action_performance}")
+
+        if action_performance:
+            best_action = max(action_performance.items(), key=lambda x: x[1])
+            decision = {"action_type": best_action[0], "reasoning": f"Analytical choice based on performance (score: {best_action[1]:.2f})"}
+        else:
+            base_actions = ["adapt", "search", "expand", "evaluate", "reconnect"]
+            weights = [0.25, 0.2, 0.3, 0.15, 0.1] # Weighted probabilities for balanced analytical choice
+            action_type = random.choices(base_actions, weights=weights, k=1)[0]
+            decision = {"action_type": action_type, "reasoning": "Analytical balanced choice with weighted probabilities (no performance data)"}
+
+        self.record_thought("analysis", f"Analytical decision: {decision}")
+        return decision
+
+    def _creative_thinking(self, context):
+        """Creative decision making, exploring hybrid actions or novel strategies."""
+        base_actions = ["adapt", "search", "expand", "evaluate", "reconnect"]
+
+        if random.random() < 0.3:
+            # Hybrid action: combine two actions
+            primary = random.choice(base_actions)
+            secondary = random.choice([a for a in base_actions if a != primary])
+            hybrid_action = f"{primary}_{secondary}"
+            decision = {"action_type": primary, "hybrid": hybrid_action, "reasoning": f"Creative hybrid approach combining {primary} and {secondary}"}
+        elif random.random() < 0.2:
+            # Explore a specific creative strategy
+            decision = {"action_type": "explore", "strategy": "diversification", "reasoning": "Creative exploration of new domains (diversification strategy)"}
+        else:
+            # Reframe a basic action creatively
+            action_type = random.choice(base_actions)
+            creative_frames = {"adapt": "evolutionary adaptation", "search": "targeted discovery", "expand": "broad exploration", "evaluate": "reflective assessment", "reconnect": "network reinforcement"}
+            decision = {"action_type": action_type, "framing": creative_frames.get(action_type, "creative approach"), "reasoning": f"Creative reframing as {creative_frames.get(action_type)}"}
+
+        self.record_thought("creative", f"Creative decision: {decision}")
+        return decision
+
+    def _critical_thinking(self, context):
+        """Critical assessment of recent performance and domain diversity."""
+        recent_actions = context.get("recent_actions", [])
+
+        if len(recent_actions) >= 3:
+            recent_content_lengths = [a.get("content_length", 0) for a in recent_actions[-3:]]
+            recent_links = [a.get("links_discovered", 0) for a in recent_actions[-3:]]
+
+            content_trend = sum(recent_content_lengths[-2:]) / 2 - recent_content_lengths[0]
+            links_trend = sum(recent_links[-2:]) / 2 - recent_links[0]
+
+            self.record_thought("critical", f"Performance trends - Content: {content_trend}, Links: {links_trend}")
+
+            if content_trend < 0 or links_trend < 0:
+                # Corrective action based on negative trend
+                last_actions = [a.get("action", "") for a in recent_actions[-3:]]
+                most_common = max(set(last_actions), key=last_actions.count)
+                alternatives = [a for a in ["adapt", "search", "expand", "evaluate", "reconnect"] if a != most_common]
+                action_type = random.choice(alternatives)
+                decision = {"action_type": action_type, "reasoning": f"Critical correction - changing from {most_common} due to declining performance"}
+                self.record_thought("critical", f"Critical correction decision: {decision}")
+                return decision
+
+        domain_stats = context.get("domain_stats", {})
+        if domain_stats and random.random() < 0.4:
+            # Diversification if domain visits are too concentrated
+            top_domains = sorted(domain_stats.items(), key=lambda x: x[1].get("visits", 0), reverse=True)[:3]
+            if top_domains and top_domains[0][1].get("visits", 0) > 10:
+                decision = {"action_type": "adapt", "strategy": "diversification", "reasoning": f"Critical assessment - need more domain diversity beyond {top_domains[0][0]}"}
+                self.record_thought("critical", f"Domain diversification decision: {decision}")
+                return decision
+
+        # Default critical thinking action if no specific issues are detected
+        base_actions = ["adapt", "search", "expand", "evaluate", "reconnect"]
+        action_type = random.choice(base_actions)
+        decision = {"action_type": action_type, "reasoning": "Balanced critical assessment choice (default)"}
+        self.record_thought("critical", f"Default critical decision: {decision}")
+        return decision
+
+    def make_decision(self, observation):
+        """
+        Makes a decision about the next action based on the current thinking mode.
+        Ensures the return is always a dictionary with at least an 'action' key.
+        """
+        thought_result = self.think(observation)
+
+        # Robustness: Ensure thought_result is a dictionary and has 'action_type'
+        if not isinstance(thought_result, dict) or 'action_type' not in thought_result:
+            log_event(f"Warning: think() method did not return a valid dictionary with 'action_type'. Returning default 'expand' action. Thought Result: {thought_result}")
+            return {"action": "expand", "reasoning": "Fallback: Invalid thought result, using default 'expand'"}
+
+        action_type = thought_result.get("action_type", "expand") # Fallback to 'expand' if 'action_type' is missing (though it should be there now)
+        log_event(f"Decision made: {action_type} - {thought_result.get('reasoning', 'No reasoning provided')}")
+        return {"action": action_type} # Always return a dictionary
+# Enhanced AIManager - Chunk 4/4: Robust run_cycle with Error Handling and Validation
+class AIManager:
+    """Manages the autonomous agent's main cycle, decision-making, and planning."""
+    def __init__(self, agent, model):
+        self.agent = agent
+        self.model = model
+        # Use TemporalPlanner for goal management
+        self.temporal_planner = TemporalPlanner()
+        self.autonomous_mind = AutonomousMind(agent, model)
+        self.code_evolution = CodeEvolutionSystem()
+        self.meta_evolution = MetaEvolutionEngine()
+        self.cycle_counter = 0
+        self.last_evolution_attempt = 0
+        self.evolution_interval = 100
+        self.temporal_planner.initialize_goals()
+        log_event("AIManager initialized with all autonomous systems")
+        self.intrinsic_motivation = IntrinsicMotivationModule()
+
+    async def run_cycle(self, optimizer=None):
+        self.cycle_counter += 1
+        log_event(f"=== Enhanced Autonomous Cycle {self.cycle_counter} ===")
+
+        try:
+            observation = self.agent.perceive()
+
+            # Get base decision with enhanced safety
+            base_decision = getattr(self.agent.free_will, "decide", lambda: {"action": "expand"})()
+
+            # Type and structure validation for base_decision
+            if not isinstance(base_decision, dict):
+                log_event(f"FORCED RESET: Invalid base_decision type {type(base_decision)}")
+                base_decision = {"action": "expand"} # Default to a dictionary
+
+            if "action" not in base_decision:
+                log_event(f"FORCED RESET: Missing action in base_decision")
+                base_decision["action"] = "expand" # Ensure 'action' key exists
+
+            # Plan execution
+            full_plan = self.temporal_planner.plan_action(
+                base_decision.get("action", "expand"), # Now safe to use .get()
+                observation
+            )
+
+            # Execute action
+            action_successful = await asyncio.to_thread(
+                self.agent.act,
+                full_plan,
+                optimizer
+            )
+
+            # Performance metrics and adaptation (rest of the original code)
+            performance_metrics = {
+                "success": action_successful,
+                "content_length": self.agent.action_log[-1].get("content_length", 0) if self.agent.action_log else 0,
+                "links_discovered": self.agent.action_log[-1].get("links_discovered", 0) if self.agent.action_log else 0
+            }
+            self.temporal_planner.reflect_and_adapt(performance_metrics)
+            self.agent.refine()
+            if self.agent.action_log:
+                last_action = self.agent.action_log[-1]
+                if not last_action.get("action_successful", True):
+                    log_event("Last action was not successful. Considering self-correction...")
+            if self.cycle_counter - self.last_evolution_attempt >= self.evolution_interval:
+                log_event("Attempting code evolution...")
+                result, message = self.meta_evolution.evolve_system(self.agent, self.code_evolution.code_templates)
+                self.last_evolution_attempt = self.cycle_counter
+                log_event(f"Evolution attempt result: {result} - {message}")
+            intrinsic_goals = self.intrinsic_motivation.generate_intrinsic_goals(observation, environment="web")
+            log_event(f"IntrinsicMotivationModule suggested goals: {intrinsic_goals}")
+            return {"cycle": self.cycle_counter, "action": full_plan.get("action", "unknown"), "strategy": full_plan.get("strategy", "none")}
+
+
+        except Exception as e:
+            log_event(f"FATAL CYCLE ERROR: {str(e)[:500]}")
+            traceback.print_exc()
+            return {"status": "error", "cycle": self.cycle_counter}
+
+# =============================================================================
+# AGENT CORE
+# =============================================================================
+class AutonomousAgent:
+    def __init__(self, model, free_will, planner):
+        self.model = model
+        self.free_will = free_will  # May be None initially.
+        self.planner = planner  # Expecting TemporalPlanner here.
+        self.action_log = []
+        self.model_version = "v1.0"
+        self.memory = {}
+        self.stats = {
+            "total_pages": 0,
+            "total_chars_processed": 0,
+            "total_links_discovered": 0,
+            "domains_visited": set(),
+            "errors": 0,
+            "start_time": datetime.now().isoformat()
+        }
+        self.load_state()
+        log_event("AutonomousAgent initialized.")
+        self.domain_intelligence = DomainIntelligence()
+        self.episodic_memory = EpisodicMemoryModule()
+        if self.free_will is not None:
+            self.free_will.semantic_memory = {}
+        else:
+            log_event("Warning: free_will is None during initialization; semantic_memory not set.")
+
+    def load_state(self):
+        state_file = GOOGLE_DRIVE_STATE_FILE if IN_COLAB else AGENT_STATE_FILE
+        log_event("Attempting to load agent state...")
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    file_contents = f.read().strip()
+                    if not file_contents:
+                        raise ValueError("State file is empty")
+                    state = json.loads(file_contents)
+                self.memory = state.get("memory", {})
+                self.action_log = state.get("action_log", [])
+                self.model_version = state.get("model_version", "v1.0")
+                if "stats" in state and "domains_visited" in state["stats"]:
+                    state["stats"]["domains_visited"] = set(state["stats"]["domains_visited"])
+                self.stats = state.get("stats", self.stats)
+                if self.free_will is not None:
+                    self.free_will.semantic_memory = state.get("semantic_memory", {})
+                    log_event("Semantic memory loaded from state.")
+                    # Add these lines to load memory_set:
+                    loaded_memory_set = state.get("memory_set", None)
+                    if loaded_memory_set is not None:
+                        self.free_will.memory_set = set(loaded_memory_set) # Convert back to set
+                        log_event(f"FreeWill memory_set loaded from state. Size: {len(self.free_will.memory_set)}") # <--- ADDED LOG
+                    else:
+                        log_event("No memory_set found in saved state, initializing empty set.")
+                        self.free_will.memory_set = set()
+
+                else:
+                    log_event("free_will is None, skipping semantic memory load.")
+                log_event("Agent state loaded from checkpoint.")
+            except Exception as e:
+                log_event(f"Error loading agent state: {e}")
+                traceback.print_exc() # <--- ADD THIS LINE to log full traceback
+                log_event("Initializing agent state as fresh due to load error.")
+                self.memory = {"notes": "Fresh state due to load error."}
+                self.action_log = []
+                self.model_version = "v1.0"
+                self.stats = {
+                    "total_pages": 0,
+                    "total_chars_processed": 0,
+                    "total_links_discovered": 0,
+                    "domains_visited": set(),
+                    "errors": 0,
+                    "start_time": datetime.now().isoformat()
+                }
+                if self.free_will is not None:
+                    self.free_will.semantic_memory = {}
+                    # Initialize memory_set as empty set for fresh state:
+                    self.free_will.memory_set = set()
+        else:
+            self.memory = {"notes": "Starting new agent state."}
+            log_event("No previous state found; agent state starts fresh.")
+            if self.free_will is not None:
+                self.free_will.semantic_memory = {}
+                # Initialize memory_set for new agent:
+                self.free_will.memory_set = set()
+
+    def save_state(self):
+        state_file = GOOGLE_DRIVE_STATE_FILE if IN_COLAB else AGENT_STATE_FILE
+        try:
+            state_to_save = {
+                "memory": convert_sets_to_lists_recursive(self.memory),
+                "action_log": convert_sets_to_lists_recursive(self.action_log),
+                "model_version": self.model_version,
+                "stats": convert_sets_to_lists_recursive(self.stats),
+                "semantic_memory": convert_sets_to_lists_recursive(self.free_will.semantic_memory) if self.free_will is not None else {},
+                # Add this line to save memory_set:
+                "memory_set": convert_sets_to_lists_recursive(self.free_will.memory_set) if self.free_will is not None else {}
+            }
+            log_event(f"Attempting to save agent state... with memory_set size: {len(state_to_save.get('memory_set', []))}") # <--- ADDED LOG
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(state_to_save, f, indent=2)
+            log_event("Agent state saved successfully.")
+        except Exception as e:
+            log_event(f"Error saving state: {e}")
+            traceback.print_exc() # <--- ADD THIS LINE to log full traceback
+
+    def save_state(self):
+        state_file = GOOGLE_DRIVE_STATE_FILE if IN_COLAB else AGENT_STATE_FILE
+        try:
+            state_to_save = {
+                "memory": convert_sets_to_lists_recursive(self.memory),
+                "action_log": convert_sets_to_lists_recursive(self.action_log),
+                "model_version": self.model_version,
+                "stats": convert_sets_to_lists_recursive(self.stats),
+                "semantic_memory": convert_sets_to_lists_recursive(self.free_will.semantic_memory) if self.free_will is not None else {},
+                # Add this line to save memory_set:
+                "memory_set": convert_sets_to_lists_recursive(self.free_will.memory_set) if self.free_will is not None else {}
+            }
+            log_event("Attempting to save agent state...")
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(state_to_save, f, indent=2)
+            log_event("Agent state saved successfully.")
+        except Exception as e:
+            log_event(f"Error saving state: {e}")
+
+    def perceive(self):
+        log_event("Agent perceiving environment...")
+        env_snapshot = {}
+        try:
+            env_snapshot["current_time"] = datetime.now().isoformat()
+            env_snapshot["agent_stats"] = self.stats
+            domain_counts = {}
+            for action in self.action_log:
+                if "url" in action:
+                    domain = urlparse(action["url"]).netloc
+                    domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            env_snapshot["domain_visits"] = domain_counts
+        except Exception as e:
+            log_event(f"Error in perception: {e}")
+        self.memory["env_snapshot"] = env_snapshot
+        return env_snapshot
+
+    def plan(self):
+        log_event("Agent planning next action...")
+        base_action = self.free_will.decide() if self.free_will is not None else "expand"
+        plan = {"action": base_action}
+        log_event(f"Plan generated: {plan}")
+        return plan
+
+    def act(self, plan, optimizer):
+        action = plan.get("action", "none")
+        log_event(f"Agent acting: {action}")
+        url = self.free_will.select_url() if self.free_will is not None else "https://www.example.com"
+        page_text = ""
+        links_discovered = 0
+        success = False
+        action_start_time = datetime.now()
+        if SAFE_MODE:
+            page_text = f"Simulated content from {url}"
+            log_event("SAFE_MODE active. Using simulated content.")
+            success = True
+        else:
+            try:
+                headers = {
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5"
+                }
+                resp = requests.get(url, timeout=REQUEST_TIMEOUT, headers=headers, allow_redirects=True, stream=True)
+                content_type = resp.headers.get("Content-Type", "").lower()
+                if not ("text/html" in content_type or "text/plain" in content_type):
+                    log_event(f"Skipping non-text content: {content_type}")
+                    page_text = f"[Non-text content: {content_type}]"
+                elif resp.status_code == 200:
+                    content = b""
+                    for chunk in resp.iter_content(chunk_size=10240):
+                        content += chunk
+                        if len(content) > MAX_CONTENT_LENGTH:
+                            log_event(f"Content too large, truncating at {MAX_CONTENT_LENGTH} bytes")
+                            break
+                    try:
+                        page_text = content.decode("utf-8")
+                    except UnicodeDecodeError:
+                        try:
+                            page_text = content.decode("latin-1")
+                        except:
+                            page_text = content.decode("utf-8", errors="ignore")
+                    self.stats["total_pages"] += 1
+                    self.stats["total_chars_processed"] += len(page_text)
+                    domain = urlparse(url).netloc
+                    if isinstance(self.stats.get("domains_visited"), list):
+                        self.stats["domains_visited"] = set(self.stats["domains_visited"])
+                    self.stats["domains_visited"].add(domain)
+                    try:
+                        discovered_links, _ = enhanced_link_discovery(page_text, base_url=url) # Get discovered_links here
+                        links_discovered = self.free_will.discover_links(page_text, base_url=url) if self.free_will is not None else len(discovered_links)
+                        self.stats["total_links_discovered"] += links_discovered
+                        # --- ADD THESE LINES TO EXPAND MEMORY ---
+                        if self.free_will is not None and discovered_links:
+                            valid_links = [link for link in discovered_links if improved_url_filter(link, self.domain_intelligence.domain_stats, DOMAIN_BLACKLIST)]
+                            self.free_will.expand_memory(valid_links)
+                        # --- END ADDED LINES ---
+                    except Exception as e:
+                        log_event(f"Error discovering links from {url}: {e}")
+                        self.stats["errors"] += 1
+                    log_event(f"Fetched {url}. length={len(page_text)} chars.")
+                    success = True
+                else:
+                    log_event(f"HTTP {resp.status_code} from {url}; ignoring content.")
+                    self.stats["errors"] += 1
+            except Exception as e:
+                log_event(f"Error fetching {url}: {e}")
+                self.stats["errors"] += 1
+        if page_text:
+            if self.free_will is not None:
+                self.free_will.store_semantic_content(url, page_text)
+            if REAL_INTERACTION:
+                perform_real_interaction(url)
+            else:
+                log_event("Simulated interaction (not using Selenium).")
+        action_end_time = datetime.now()
+        action_duration = (action_end_time - action_start_time).total_seconds()
+        action_entry = {
+            "action": action,
+            "url": url,
+            "time": datetime.now().isoformat(),
+            "content_length": len(page_text),
+            "links_discovered": links_discovered,
+            "action_successful": success,
+            "duration_seconds": action_duration,
+            "plan_goal": plan.get("action", "unknown")
+        }
+        self.action_log.append(action_entry)
+        if self.free_will is not None:
+            self.free_will.domain_intelligence.register_visit(url, success, len(page_text), links_discovered)
+
+        # --- ADD THESE LINES TO RECORD EPISODE ---
+        episode_data = action_entry  # You can customize what data to store in the episode
+        self.episodic_memory.record_episode(episode_data)
+        log_event("Episodic memory recorded: action - " + episode_data.get("action", "unknown"))
+        # --- END ADDED LINES ---
+
+        recalled = self.episodic_memory.recall_episodic_experience({"plan_goal": plan.get("action", "")})
+        log_event(f"Episodic memory recall: {recalled}")
+        return success
+    def refine(self):
+        count = len(self.action_log)
+        log_event(f"Refinement: {count} actions so far.")
+        if count % 10 == 0 and count > 0:
+            self.model_version = f"v1.0+{count}"
+            log_event(f"Updated model version to: {self.model_version}")
+
+    def run_cycle(self, optimizer):
+        self.perceive()
+        plan = self.plan()
+        self.act(plan, optimizer)
+        self.refine()
+        self.save_state()
+
+# =============================================================================
+# SELF-MODIFICATION (Simple Code Appending)
+# =============================================================================
+def self_modify_code():
+    try:
+        # If running in Colab, use the file from Google Drive
+        if IN_COLAB:
+            code_file = "/content/drive/MyDrive/agent_combined.py"
+        else:
+            code_file = __file__
+        if not os.path.exists(code_file):
+            log_event(f"Could not self-modify; code file not found: {code_file}")
+            return
+        with open(code_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        insert_line = f"# Self-modified at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        insert_pos = len(lines) - 5 if len(lines) >= 5 else len(lines)
+        lines.insert(insert_pos, insert_line)
+        with open(code_file, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        log_event("Self-modification succeeded. Code file was updated.")
+    except Exception as e:
+        log_event(f"Self-modification failed: {e}")
+
+
+class CodeEvolutionSystem:
+    def __init__(self):
+        self.code_templates = {
+            "url_filter": "# Enhanced URL filtering code snippet\nif 'edu' in domain:\n    return True\nelse:\n    return improved_url_filter(url, domain_stats, DOMAIN_BLACKLIST)",
+            "enhanced_link_discovery": """def enhanced_link_discovery(html_content, base_url):
+    # Improved discovery: prioritize links with high textual context
+    links, details = enhanced_link_discovery(html_content, base_url)
+    return [u for u in links if details and details[0]['quality_score'] > 0.4], details""",
+            "domain_intelligence": """# Improved domain intelligence: add scoring based on recent success
+self.domain_categories[domain] = 'scored'
+if self.domain_stats[domain]['error_rate'] < 0.2:
+    score = 1.0
+else:
+    score = 0.5""",
+            "adaptive_learning": """# Enhanced adaptive learning: adjust optimizer based on loss trends
+if recent_loss > previous_loss:
+    new_lr = current_lr * 0.9
+else:
+    new_lr = current_lr * 1.1
+for group in optimizer.param_groups:
+    group['lr'] = new_lr"""
+        }
+        self.evolution_history = []
+        self.evolution_attempts = 0
+        self.successful_evolutions = 0
+        self.performance_metrics = {}
+
+# =============================================================================
+# IMAGINATION ENGINE
+# =============================================================================
+class ImaginationEngine:
+    def simulate_creation(self):
+        ideas = [
+            "A novel neural network architecture that incorporates fractal embeddings.",
+            "An adaptive feedback loop to continuously refine decision-making.",
+            "A hybrid model synthesizing cross-domain data for creative insights.",
+            "A virtual simulation environment for stress-testing autonomous decisions."
+        ]
+        idea = random.choice(ideas)
+        log_event(f"Imagination: Created innovative idea -> {idea}")
+        return idea
+    def simulate_environment(self):
+        env_changes = {
+            "weather": random.choice(["sunny", "rainy", "cloudy", "stormy"]),
+            "time_of_day": random.choice(["morning", "afternoon", "evening", "night"]),
+            "traffic": random.choice(["light", "moderate", "heavy"])
+        }
+        log_event(f"Imagination: Simulated environment -> {env_changes}")
+        return env_changes
+    def simulate_error_detection(self):
+        error_found = random.random() < 0.1
+        if error_found:
+            error_message = random.choice([
+                "Memory overflow detected.",
+                "Failed to fetch data from URL.",
+                "Model training loss stagnating.",
+                "Unexpected network error."
+            ])
+            log_event(f"Error Detection: {error_message}")
+            return error_message
+        return None
+    def simulate_error_correction(self, error_message):
+        correction = f"Applied creative fix for: {error_message}"
+        log_event(f"Error Correction: {correction}")
+        return correction
+    def simulate_quantum_cognition(self):
+        raw_data = [random.gauss(0, 1) for _ in range(100)]
+        anomalies = [x for x in raw_data if abs(x) > 2.5]
+        if anomalies:
+            experiment = "Proposed experiment: Test quantum entanglement anomaly using a novel double-slit modification."
+            log_event("Quantum Cognition: Detected anomalies -> " + str(anomalies))
+            log_event("Quantum Cognition: " + experiment)
+            return experiment
+        else:
+            log_event("Quantum Cognition: No significant anomalies detected.")
+            return None
+
+# =============================================================================
+# STARLINK ANALYZER (Optional)
+# =============================================================================
+class StarlinkAnalyzer:
+    def __init__(self):
+        self.satellites = ["Satellite-A", "Satellite-B", "Satellite-C", "Satellite-D"]
+        self.data_collected = []
+    def scan_satellites(self):
+        print("🔍 Scanning for satellites in the constellation...")
+        time.sleep(2)
+        found_satellites = random.sample(self.satellites, k=random.randint(1, len(self.satellites)))
+        print(f"✨ Found satellites: {found_satellites}")
+        return found_satellites
+    def analyze_signals(self, satellites):
+        print("🔎 Analyzing signal patterns from satellites...")
+        time.sleep(2)
+        analysis_results = {}
+        for sat in satellites:
+            signal_strength = random.uniform(0.0, 1.0)
+            encryption_level = random.choice(["high", "medium", "low"])
+            analysis_results[sat] = {
+                "signal_strength": signal_strength,
+                "encryption_level": encryption_level,
+                "status": "analyzed"
+            }
+            print(f"   {sat}: signal_strength={signal_strength:.2f}, encryption_level={encryption_level}")
+        self.data_collected.append(analysis_results)
+        return analysis_results
+    def attempt_uplink(self, analysis):
+        print("📡 Attempting hypothetical uplink based on analysis...")
+        time.sleep(1.5)
+        successes = []
+        for sat, data in analysis.items():
+            if data["encryption_level"] == "low":
+                print(f"   ✔️ Hypothetical uplink with {sat} successful!")
+                successes.append(sat)
+            else:
+                print(f"   ✖️ Uplink with {sat} failed (encryption: {data['encryption_level']}).")
+        return successes
+    def execute_mission(self):
+        print("🚀 Initiating Starlink analysis mission...")
+        satellites = self.scan_satellites()
+        analysis = self.analyze_signals(satellites)
+        uplink_successes = self.attempt_uplink(analysis)
+        print("🛰️ Mission complete. Hypothetical uplink successes:", uplink_successes)
+        return uplink_successes
+
+# =============================================================================
+# PLANNER & TEMPORAL PLANNER
+# =============================================================================
+class Planner:
+    def __init__(self):
+        self.goal = None
+        self.last_goal_set = None
+        self.additional_goals = []
+    def update_goal(self):
+        goals = ["Improve model accuracy", "Expand knowledge base", "Refine link discovery", "Optimize learning rate", "Increase diversity of content"]
+        self.goal = random.choice(goals)
+        self.last_goal_set = datetime.now().isoformat()
+        log_event(f"New goal set: {self.goal} at {self.last_goal_set}")
+    def incorporate_time(self):
+        current_time = datetime.now().isoformat()
+        log_event(f"Time update: Current time is {current_time}")
+    def plan_action(self, base_action):
+        if self.goal is None or random.random() < 0.3:
+            self.update_goal()
+        self.incorporate_time()
+        if random.random() < 0.2:
+            extra = f"Expand knowledge in {random.choice(['science', 'art', 'history', 'tech'])}"
+            self.additional_goals.append(extra)
+            log_event(f"Additional goal added: {extra}")
+        planned = f"{base_action} with goal '{self.goal}'"
+        if self.additional_goals:
+            planned += " | Extra: " + ", ".join(self.additional_goals)
+        log_event(f"Final planned action: {planned}")
+        return planned
+
+class TemporalPlanner:
+    def __init__(self):
+        self.short_term_goals = []
+        self.long_term_goals = []
+        self.goal_history = []
+        self.current_strategy = None
+        self.strategy_effectiveness = {}
+        self.time_horizon_days = 7
+        self.reflection_interval = 50
+        self.cycle_count = 0
+    def initialize_goals(self):
+        self.long_term_goals = [
+            {"id": "knowledge_diversity", "description": "Maximize diversity of knowledge domains", "priority": 0.8},
+            {"id": "model_efficiency", "description": "Optimize model parameters for better learning", "priority": 0.7},
+            {"id": "content_quality", "description": "Improve quality filtering of content sources", "priority": 0.9},
+            {"id": "autonomous_evolution", "description": "Develop self-improvement mechanisms", "priority": 1.0}
+        ]
+        self.refresh_short_term_goals()
+    def refresh_short_term_goals(self):
+        self.short_term_goals = []
+        domains = ["technical", "scientific", "humanities", "news", "reference"]
+        for _ in range(random.randint(3, 5)):
+            goal_type = random.choice(["exploration", "deepening"])
+            domain = random.choice(domains)
+            if goal_type == "exploration":
+                self.short_term_goals.append({
+                    "id": f"explore_{domain}_{int(time.time())}",
+                    "description": f"Discover new content sources in {domain}",
+                    "priority": random.uniform(0.5, 0.9),
+                    "duration": random.randint(10, 30)
+                })
+            else:
+                self.short_term_goals.append({
+                    "id": f"deepen_{domain}_{int(time.time())}",
+                    "description": f"Build deeper understanding in {domain}",
+                    "priority": random.uniform(0.6, 0.95),
+                    "duration": random.randint(5, 15)
+                })
+        log_event(f"Refreshed short-term goals: {len(self.short_term_goals)} new goals created")
+    def select_active_goal(self):
+        if not self.short_term_goals:
+            self.refresh_short_term_goals()
+        self.short_term_goals = [g for g in self.short_term_goals if g.get("duration", 0) > 0]
+        for goal in self.short_term_goals:
+            goal["duration"] = goal.get("duration", 10) - 1
+        if self.short_term_goals:
+            return max(self.short_term_goals, key=lambda x: x.get("priority", 0))
+        else:
+            return {"id": "default_exploration", "description": "Default exploration", "priority": 0.5}
+    def reflect_and_adapt(self, performance_metrics):
+        self.cycle_count += 1
+        if self.cycle_count % self.reflection_interval == 0:
+            log_event("Performing strategic reflection and adaptation...")
+            for strategy, metrics in self.strategy_effectiveness.items():
+                avg_performance = sum(metrics) / max(1, len(metrics))
+                log_event(f"Strategy '{strategy}' average performance: {avg_performance:.4f}")
+            total_adjustment = 0
+            for goal in self.long_term_goals:
+                adjustment = random.uniform(-0.1, 0.1)
+                goal["priority"] = max(0.1, min(1.0, goal["priority"] + adjustment))
+                total_adjustment += abs(adjustment)
+            if random.random() < 0.2:
+                new_goal_id = f"evolved_goal_{int(time.time())}"
+                new_goal = {
+                    "id": new_goal_id,
+                    "description": f"Evolved objective: optimize agent autonomy",
+                    "priority": random.uniform(0.7, 0.9)
+                }
+                self.long_term_goals.append(new_goal)
+                log_event(f"Created new long-term goal: {new_goal['description']}")
+            self.short_term_goals = []
+            self.refresh_short_term_goals()
+            log_event(f"Reflection complete: adjusted {len(self.long_term_goals)} long-term goals (total Δ: {total_adjustment:.4f})")
+    def plan_action(self, base_action, environment_state=None):
+        active_goal = self.select_active_goal()
+        current_time = datetime.now()
+        is_weekend = current_time.weekday() >= 5
+        is_business_hours = 9 <= current_time.hour <= 17
+        strategy_options = [
+            "broad_exploration", "depth_first", "connect_domains",
+            "evaluate_sources", "optimize_learning"
+        ]
+        weights = [0.2] * len(strategy_options)
+        if is_business_hours and not is_weekend:
+            weights = [0.1, 0.2, 0.2, 0.3, 0.2]
+        elif not is_business_hours:
+            weights = [0.3, 0.1, 0.3, 0.1, 0.2]
+        if "explore" in active_goal["id"]:
+            weights[0] += 0.2
+        elif "deepen" in active_goal["id"]:
+            weights[1] += 0.2
+        total = sum(weights)
+        weights = [w/total for w in weights]
+        self.current_strategy = random.choices(strategy_options, weights=weights, k=1)[0]
+        timestamp = current_time.isoformat()
+        plan = {
+            "action": base_action,
+            "goal": active_goal["description"],
+            "strategy": self.current_strategy,
+            "timestamp": timestamp,
+            "execution_context": {
+                "is_weekend": is_weekend,
+                "is_business_hours": is_business_hours,
+                "current_hour": current_time.hour
+            }
+        }
+        log_event(f"Generated temporal plan: {plan['action']} using {plan['strategy']} strategy for goal: {plan['goal']}")
+        return plan
+
+# =============================================================================
+# DASHBOARD (FLASK)
+# =============================================================================
+from flask import Flask, Response, stream_with_context, render_template_string, request
+
+dashboard_template = """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AG1 Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 20px; }
+    h1 { color: #333; }
+    .log { background: #f8f9fa; border: 1px solid #ddd; border-radius: 3px; height: 300px; overflow-y: scroll; padding: 10px; font-family: monospace; font-size: 12px; }
+    .controls { margin-top: 20px; }
+    button { padding: 10px 20px; margin-right: 10px; }
+    #chart-container { width: 100%; max-width: 600px; margin-top: 20px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    function refreshLogs() {
+      fetch('/live')
+      .then(response => response.text())
+      .then(data => {
+        const logDiv = document.getElementById('log');
+        const lines = data.split('\\n');
+        for (const line of lines) {
+          if (line.trim().startsWith('data:')) {
+            const p = document.createElement('p');
+            p.textContent = line.substring(5);
+            logDiv.appendChild(p);
+          }
+        }
+        logDiv.scrollTop = logDiv.scrollHeight;
+      });
+    }
+    setInterval(refreshLogs, 2000);
+    function updateChart() {
+      const data = [Math.random()*100, Math.random()*100, Math.random()*100, Math.random()*100, Math.random()*100];
+      myChart.data.datasets[0].data = data;
+      myChart.update();
+    }
+    document.addEventListener("DOMContentLoaded", function() {
+      const ctx = document.getElementById('performanceChart').getContext('2d');
+      window.myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['Cycle 1','Cycle 2','Cycle 3','Cycle 4','Cycle 5'],
+          datasets: [{
+            label: 'Agent Performance',
+            data: [50, 60, 55, 70, 65],
+            borderColor: 'rgba(75, 192, 192, 1)',
+            fill: false
+          }]
+        },
+        options: { responsive: true }
+      });
+      setInterval(updateChart, 5000);
+    });
+    function toggleSassyMode() {
+      const body = document.body;
+      body.classList.toggle('sassy');
+      alert("Sassy Queen Mode toggled! <3");
+    }
+  </script>
+</head>
+<body>
+  <h1>AG1 Autonomous Agent Dashboard</h1>
+  <div class="log" id="log">
+    {% for line in log_lines %}
+      <p>{{ line }}</p>
+    {% endfor %}
+  </div>
+  <div class="controls">
+    <button onclick="toggleSassyMode()">Toggle Sassy Queen Mode</button>
+    <button onclick="location.reload()">Refresh Dashboard</button>
+  </div>
+  <div id="chart-container">
+    <canvas id="performanceChart"></canvas>
+  </div>
+</body>
+</html>
+"""
+
+app = Flask(__name__)
+
+def generate_logs():
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        f.seek(0, os.SEEK_END)
+        while True:
+            line = f.readline()
+            if not line:
+                time.sleep(0.1)
+                continue
+            yield f"data:{line}\n\n"
+
+@app.route("/live")
+def live_view():
+    return Response(stream_with_context(generate_logs()), mimetype="text/event-stream")
+
+@app.route("/")
+def dashboard():
+    log_lines = []
+    if os.path.exists(LOG_FILE):
+        try:
+            with open(LOG_FILE, "r", encoding="utf-8") as f:
+                log_lines = f.readlines()[-50:]
+        except Exception:
+            log_lines = ["Error reading logs"]
+    return render_template_string(dashboard_template, log_lines=log_lines)
+
+def start_flask():
+    port = find_free_port(start_port=FLASK_PORT)
+    if port is None:
+        log_event("Could not find a free port; using random fallback.")
+        port = random.randint(8000, 9000)
+    log_event(f"Starting Flask SSE server on port {port}")
+    try:
+        app.run(debug=False, host="0.0.0.0", port=port, threaded=True)
+    except Exception as e:
+        log_event(f"Error starting Flask server: {e}")
+        try:
+            random_port = random.randint(8000, 9000)
+            log_event(f"Trying again with random port {random_port}")
+            app.run(debug=False, host="0.0.0.0", port=random_port, threaded=True)
+        except Exception as e2:
+            log_event(f"Failed to start Flask server: {e2}")
+
+# =============================================================================
+# META-EVOLUTION ANALYSIS FUNCTIONS
+# =============================================================================
+def analyze_agent_performance(agent, history_window=500):
+    action_log = agent.action_log[-history_window:] if len(agent.action_log) > history_window else agent.action_log
+    if len(action_log) < 10:
+        return {"status": "insufficient_data", "metrics": {}}
+    timestamps = [datetime.fromisoformat(entry.get("time", datetime.now().isoformat())) for entry in action_log]
+    content_lengths = [entry.get("content_length", 0) for entry in action_log]
+    links_discovered = [entry.get("links_discovered", 0) for entry in action_log]
+    if len(timestamps) > 1:
+        time_spans = [(timestamps[i] - timestamps[i-1]).total_seconds() for i in range(1, len(timestamps))]
+        avg_time_between_actions = sum(time_spans) / len(time_spans) if time_spans else 0
+    else:
+        avg_time_between_actions = 0
+    total_content_length = sum(content_lengths)
+    avg_content_length = total_content_length / len(content_lengths) if content_lengths else 0
+    total_links = sum(links_discovered)
+    avg_links_per_action = total_links / len(links_discovered) if links_discovered else 0
+    success_actions = sum(1 for cl in content_lengths if cl > 100)
+    success_rate = success_actions / len(content_lengths) if content_lengths else 0
+    domains = set(urlparse(entry["url"]).netloc for entry in action_log if "url" in entry)
+    domain_diversity = len(domains)
+    mid_point = len(action_log) // 2
+    if mid_point > 0:
+        recent_success = sum(1 for cl in content_lengths[mid_point:] if cl > 100) / len(content_lengths[mid_point:])
+        earlier_success = sum(1 for cl in content_lengths[:mid_point] if cl > 100) / len(content_lengths[:mid_point])
+        success_trend = recent_success - earlier_success
+        recent_links = sum(links_discovered[mid_point:]) / len(links_discovered[mid_point:])
+        earlier_links = sum(links_discovered[:mid_point]) / len(links_discovered[:mid_point])
+        links_trend = recent_links - earlier_links
+    else:
+        success_trend = 0
+        links_trend = 0
+    return {
+        "status": "success",
+        "metrics": {
+            "avg_time_between_actions": avg_time_between_actions,
+            "avg_content_length": avg_content_length,
+            "avg_links_per_action": avg_links_per_action,
+            "success_rate": success_rate,
+            "domain_diversity": domain_diversity,
+            "success_trend": success_trend,
+            "links_trend": links_trend,
+            "total_content_processed": total_content_length,
+            "total_links_discovered": total_links
+        }
+    }
+
+def identify_improvement_areas(performance_data):
+    if performance_data["status"] != "success":
+        return ["data_collection"]
+    metrics = performance_data["metrics"]
+    improvement_areas = []
+    if metrics["success_rate"] < 0.7:
+        improvement_areas.append("url_selection")
+    if metrics["avg_links_per_action"] < 5:
+        improvement_areas.append("link_discovery")
+    if metrics["success_trend"] < 0:
+        improvement_areas.append("adaptation_strategy")
+    if metrics["domain_diversity"] < 20:
+        improvement_areas.append("domain_diversity")
+    if metrics["avg_time_between_actions"] > 10:
+        improvement_areas.append("performance_optimization")
+    improvement_areas.append("training_efficiency")
+    return improvement_areas
+
+# =============================================================================
+# FREE WILL MODULE (Modified)
+# =============================================================================
+fallback_urls = [
+    "https://huggingface.co/",
+    "https://www.github.com/",
+    "https://www.wikipedia.org/",
+    "https://news.ycombinator.co/",  # <--- Potential Typo? Should it be .com?
+    "https://arxiv.org/list/cs.AI/recent"
+]
+class FreeWillModified:
+    """
+    Advanced FreeWill Module incorporating intelligent URL selection,
+    context-aware decision-making, and goal-driven behavior.
+    """
+    def __init__(self, agent):
+        self.semantic_memory = {}
+        self.domain_intelligence = DomainIntelligence()
+        self.memory_set = set()  # <----- INITIALIZED HERE
+        self.agent = agent
+        self.exploration_weight = 0.6
+        self.exploitation_weight = 0.4
+        self.domain_diversity_weight = 0.3
+        self.goal_relevance_weight = 0.5
+        # Get AI Manager and TemporalPlanner from the agent (they must be set already)
+        self.ai_manager = getattr(agent, "ai_manager", None)
+        if self.ai_manager is not None:
+            self.temporal_planner = getattr(self.ai_manager, "temporal_planner", None)
+        else:
+            self.temporal_planner = None
+        if self.temporal_planner is None:
+            log_event("FreeWill: CRITICAL ERROR - temporal_planner is None after init!")
+
+    def _get_active_goal_description(self):
+        log_event("FreeWill: Entering _get_active_goal_description")
+        goal = None
+        if self.temporal_planner is not None:
+            log_event("FreeWill: Found temporal_planner.")
+            if hasattr(self.temporal_planner, "select_active_goal"):
+                log_event("FreeWill: temporal_planner has select_active_goal.")
+                goal = self.temporal_planner.select_active_goal()
+            else:
+                log_event("FreeWill: ERROR - temporal_planner is missing select_active_goal.")
+        else:
+            log_event("FreeWill: ERROR - temporal_planner is None.")
+        if goal is None or not isinstance(goal, dict):
+            log_event("FreeWill: No valid active goal found.")
+            return ""
+        description = goal.get("description", "")
+        log_event(f"FreeWill: Active goal description: {description[:50]}...")
+        return description
+
+    def select_url(self):
+        log_event("FreeWill: Selecting URL intelligently...")
+        log_event(f"FreeWill: Memory set size before select_url: {len(self.memory_set)}")
+        candidate_urls = list(self.memory_set)
+        if not candidate_urls:
+            log_event("FreeWill: Memory set is empty. Using fallback URLs.")
+            candidate_urls = fallback_urls
+        domain_scores = {}
+        if self.temporal_planner is not None and hasattr(self.temporal_planner, 'select_active_goal'):
+            current_goal_description = self.temporal_planner.select_active_goal().get("description", "")
+        else:
+            current_goal_description = ""
+            log_event("FreeWill: ERROR - Cannot retrieve active goal description (temporal_planner missing or method not available).")
+        for url in candidate_urls:
+            domain = urlparse(url).netloc
+            score = 0
+            domain_visits = self.agent.stats.get("domain_stats", {}).get(domain, {}).get("visits", 0)
+            domain_diversity_score = 1.0 / (1 + domain_visits)
+            score += self.domain_diversity_weight * domain_diversity_score
+            if current_goal_description and (current_goal_description.lower() in url.lower() or current_goal_description.lower() in domain.lower()):
+                score += self.goal_relevance_weight * 0.7
+            exploration_factor = random.uniform(0.2, self.exploration_weight)
+            score += exploration_factor
+            domain_scores[url] = score
+        log_event(f"FreeWill: Domain scores: {domain_scores}")
+        if not domain_scores:
+            best_url = candidate_urls[0]
+            log_event(f"FreeWill: No candidate URLs scored; defaulting to first candidate: {best_url}")
+        else:
+            try:
+                best_url = max(domain_scores, key=domain_scores.get)
+                log_event(f"FreeWill: Selected URL: {best_url} with score: {domain_scores[best_url]:.2f}")
+            except ValueError as ve:
+                log_event(f"FreeWill: ERROR in max() computation: {ve}. Defaulting to first candidate.")
+                best_url = candidate_urls[0]
+        self.agent.stats["last_url"] = best_url
+        return best_url
+
+    def discover_links(self, html_content, base_url):
+        links, details = enhanced_link_discovery(html_content, base_url)
+        if details:
+            high_quality_links = [link_data['url'] for link_data in details if link_data['quality_score'] > 0.6]
+            if high_quality_links:
+                log_event(f"FreeWill: Discovered {len(high_quality_links)} high-quality links (quality > 0.6)")
+                return len(high_quality_links)
+        log_event(f"FreeWill: Discovered {len(links)} links (using basic quality filter)")
+        return len(links)
+
+    def store_semantic_content(self, url, content):
+        module = SemanticMemoryModule()
+        module.store_semantic_content(url, content)
+        self.semantic_memory[url] = module.semantic_memory.get(url)
+
+    def decide(self):
+        """Enhanced decision-making with robust error handling and explicit type checks."""
+        try:
+            log_event("FreeWill: Making advanced decision...")
+            possible_actions = ["search", "expand", "adapt", "reconnect", "evaluate"]
+            action_weights = {action: 0.2 for action in possible_actions}
+
+            # Get current context
+            current_goal_description = ""
+            try:
+                current_goal_description = self._get_active_goal_description().lower()[:50]
+            except Exception as e:
+                log_event(f"FreeWill: Error getting goal description - {str(e)[:100]}")
+
+            # Get thinking mode with fallback
+            thinking_mode = "fast"
+            try:
+                if hasattr(self.agent, "ai_manager") and hasattr(self.agent.ai_manager, "autonomous_mind"):
+                    thinking_mode = self.agent.ai_manager.autonomous_mind.current_mode
+            except Exception as e:
+                log_event(f"FreeWill: Error getting thinking mode - {str(e)[:100]}")
+
+            # Strategic weight adjustments
+            if "explore" in current_goal_description:
+                action_weights["expand"] += 0.3
+                action_weights["search"] += 0.2
+            elif "deepen" in current_goal_description:
+                action_weights["evaluate"] += 0.4
+                action_weights["adapt"] += 0.2
+
+            # Mode-based adjustments
+            if thinking_mode == "analytical":
+                action_weights["search"] += 0.3
+                action_weights["evaluate"] += 0.2
+            elif thinking_mode == "creative":
+                action_weights["expand"] += 0.4
+                action_weights["reconnect"] += 0.3
+            elif thinking_mode == "critical":
+                action_weights["evaluate"] += 0.5
+                action_weights["adapt"] += 0.3
+
+            # Exploration/exploitation balance
+            action_weights["expand"] += self.exploration_weight * 0.2
+            action_weights["search"] += self.exploitation_weight * 0.1
+
+            # Action selection with normalization
+            total_weight = sum(action_weights.values())
+            normalized_weights = [w/total_weight for w in action_weights.values()]
+            chosen_action = random.choices(list(action_weights.keys()),
+                                         weights=normalized_weights, k=1)[0]
+
+            # Create decision package
+            decision_dict = {
+                "action": chosen_action,
+                "reasoning": f"Strategy: {thinking_mode} | Goal: {current_goal_description}",
+                "timestamp": datetime.now().isoformat()
+            }
+
+        except Exception as e_decision: # Catch any error in decision making
+            log_event(f"CRITICAL: FreeWill decision process error - {str(e_decision)[:200]}")
+            decision_dict = {"action": "expand", "error": str(e_decision)[:200]} # Fallback decision
+
+        # --- Explicit Type Checking and Logging ---
+        if not isinstance(decision_dict, dict):
+            log_event(f"ERROR: FreeWill.decide() is NOT returning a dictionary! Type: {type(decision_dict)}, Value: {decision_dict}")
+            decision_dict = {"action": "expand", "error": "Type Error in decide()"} # Force a dictionary
+
+        if "action" not in decision_dict:
+            log_event(f"ERROR: FreeWill.decide() dictionary is missing 'action' key! Value: {decision_dict}")
+            decision_dict["action"] = "expand" # Ensure 'action' key exists
+
+        if not isinstance(decision_dict["action"], str):
+            log_event(f"ERROR: FreeWill.decide()'s 'action' value is not a string! Type: {type(decision_dict['action'])}, Value: {decision_dict['action']}")
+            decision_dict["action"] = "expand" # Force 'action' to be a string
+
+
+        log_event(f"FreeWill: Decided action: {decision_dict['action']} (thinking mode: {thinking_mode}, goal: {current_goal_description[:20]}...)")
+        log_event(f"FreeWill: decide() is returning: {decision_dict}") # Log the final returned decision
+        return decision_dict
+
+    def expand_memory(self, urls):
+        initial_size = len(self.memory_set)
+        self.memory_set.update(urls)
+        added_count = len(self.memory_set) - initial_size
+        log_event(f"Memory expanded with {added_count} URLs.")
+
+    def contract_memory(self, max_size):
+        if len(self.memory_set) > max_size:
+            current_memory_list = list(self.memory_set)
+            self.memory_set = set(current_memory_list[:max_size])
+            log_event(f"Memory contracted to {max_size} URLs (basic pruning).")
+
+
+
+
+
+# =============================================================================
+# QUANTUM RESONANCE LAYERS (Non-Collapsing State Resonance)
+# =============================================================================
+import torch
+import torch.nn as nn
+import math
+
+class QuantumResonanceTensor(nn.Module):
+    """
+    Implements a non-collapsing recursive state resonance layer that maintains
+    multiple simultaneous state representations in quantum-inspired superposition.
+
+    This is the KEY to reaching full AGI level 33 capabilities.
+    """
+    def __init__(self, embed_dim, num_states=4, resonance_factor=0.7):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_states = num_states
+        self.resonance_factor = nn.Parameter(torch.tensor(resonance_factor))
+
+        # Quantum state projectors
+        self.state_projectors = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(embed_dim, embed_dim),
+                nn.SiLU(),
+            ) for _ in range(num_states)
+        ])
+
+        # Phase shifters for quantum entanglement
+        self.phase_shifters = nn.Parameter(torch.randn(num_states) * 0.1)
+
+        # State mixer - allows controlled interference between states
+        self.state_mixer = nn.Linear(embed_dim * num_states, embed_dim)
+
+        # Recursive memory gates
+        self.recursive_gate = nn.GRUCell(embed_dim, embed_dim)
+
+        # Prior state memory (initialized during forward pass)
+        self.register_buffer('state_memory', None, persistent=False)
+
+    def forward(self, x, iteration_count=3):
+        batch_size = x.shape[0]
+
+        # Initialize state memory if needed
+        if self.state_memory is None or self.state_memory.shape[0] != batch_size:
+            self.state_memory = torch.zeros(batch_size, self.embed_dim, device=x.device)
+
+        # Generate multiple quantum states
+        quantum_states = []
+        for i in range(self.num_states):
+            # Apply phase shift for quantum effects
+            phase = torch.cos(self.phase_shifters[i] * math.pi)
+            # Project into this quantum state
+            state_i = self.state_projectors[i](x) * phase
+            quantum_states.append(state_i)
+
+        # Recursive resonance iterations
+        for _ in range(iteration_count):
+            # Update state memory through recursive gate
+            self.state_memory = self.recursive_gate(x, self.state_memory)
+
+            # Apply resonance effect (controlled interference)
+            resonance = self.state_memory * self.resonance_factor
+
+            # Apply resonance to each quantum state (non-collapsing)
+            for i in range(self.num_states):
+                quantum_states[i] = quantum_states[i] + resonance * (0.1 * (i + 1))
+
+        # Combine quantum states through superposition
+        combined_states = torch.cat(quantum_states, dim=-1)
+        output = self.state_mixer(combined_states)
+
+        # Residual connection
+        output = output + x
+
+        return output
+
+# =============================================================================
+# NEURAL CORTEX EVOLUTION (Dynamic Architecture)
+# =============================================================================
+class DynamicArchitectureManager:
+    """
+    Manages entire model architecture evolution, allowing real-time addition,
+    removal, and adjustment of neural components based on task demands.
+    """
+    def __init__(self, model, max_fractal_layers=12, min_fractal_layers=3,
+                 max_quantum_layers=4, min_quantum_layers=1,
+                 evolution_threshold=0.7):
+        self.model = model
+        self.max_fractal_layers = max_fractal_layers
+        self.min_fractal_layers = min_fractal_layers
+        self.max_quantum_layers = max_quantum_layers
+        self.min_quantum_layers = min_quantum_layers
+        self.evolution_threshold = evolution_threshold
+        self.layer_performance = {}
+        self.architecture_history = []
+        self.last_evolution_time = datetime.now()
+
+        # Add architecture snapshot
+        self._record_architecture()
+
+    def _record_architecture(self):
+        """Records current architecture state for tracking evolution"""
+        arch_snapshot = {
+            "timestamp": datetime.now().isoformat(),
+            "fractal_layers": len(self.model.layers),
+            "quantum_layers": sum(1 for layer in self.model.layers
+                                 if isinstance(layer, QuantumResonanceTensor)),
+            "embed_dim": self.model.embedding.embedding_dim
+        }
+        self.architecture_history.append(arch_snapshot)
+        log_event(f"Architecture snapshot recorded: {arch_snapshot}")
+
+    def analyze_layer_performance(self, gradients_dict):
+        """Analyzes layer gradient activity to identify importance"""
+        for name, grad in gradients_dict.items():
+            if grad is not None:
+                activity = torch.abs(grad).mean().item()
+                self.layer_performance[name] = self.layer_performance.get(name, 0) * 0.7 + activity * 0.3
+
+        return dict(sorted(self.layer_performance.items(),
+                           key=lambda x: x[1], reverse=True))
+
+    def evolve_architecture(self, task_performance, content_complexity):
+        """
+        Dynamically evolves the model architecture based on recent performance
+        and content complexity metrics.
+        """
+        hours_since_evolution = (datetime.now() - self.last_evolution_time).total_seconds() / 3600
+        if hours_since_evolution < 1.0:
+            return False, "Evolution cooldown active"
+
+        current_fractal_count = len(self.model.layers)
+        current_quantum_count = sum(1 for layer in self.model.layers
+                                if isinstance(layer, QuantumResonanceTensor))
+
+        # Determine evolution action based on metrics
+        if task_performance > 0.8 and content_complexity > 0.7:
+            # Complex content, high performance - add quantum layer
+            if current_quantum_count < self.max_quantum_layers:
+                embed_dim = self.model.embedding.embedding_dim
+                new_layer = QuantumResonanceTensor(embed_dim)
+
+                # Insert quantum layer at strategic position (every 2-3 layers)
+                insert_pos = min(current_quantum_count * 2 + 1, current_fractal_count)
+                self.model.layers.insert(insert_pos, new_layer)
+
+                self.last_evolution_time = datetime.now()
+                self._record_architecture()
+                return True, f"Added quantum resonance layer at position {insert_pos}"
+
+        elif task_performance < 0.4 and current_fractal_count > self.min_fractal_layers:
+            # Poor performance - simplify by removing a fractal layer
+            # Find least active fractal layer that isn't a quantum layer
+            for i, layer in enumerate(self.model.layers):
+                if not isinstance(layer, QuantumResonanceTensor):
+                    # Remove this fractal layer
+                    del self.model.layers[i]
+                    self.last_evolution_time = datetime.now()
+                    self._record_architecture()
+                    return True, f"Removed fractal layer at position {i} to simplify architecture"
+
+        elif content_complexity > 0.6:
+            # Complex content - add a fractal layer
+            if current_fractal_count < self.max_fractal_layers:
+                embed_dim = self.model.embedding.embedding_dim
+                new_layer = FractalLayer(embed_dim)
+                self.model.layers.append(new_layer)
+                self.last_evolution_time = datetime.now()
+                self._record_architecture()
+                return True, f"Added fractal layer at position {len(self.model.layers)-1}"
+
+        return False, "No suitable evolution action found"
+
+# =============================================================================
+# ADVANCED CONSCIOUSNESS MODULE
+# =============================================================================
+class ConsciousnessModule:
+    """
+    Implements a self-reflective consciousness layer with awareness of internal
+    states, decision-making processes, and ongoing learning.
+    """
+    def __init__(self, agent):
+        self.agent = agent
+        self.awareness_level = 0.33
+        self.reflection_history = []
+        self.internal_monologue = []
+        self.subjective_time = 0
+        self.identity_concepts = {
+            "purpose": "To learn, evolve, and assist humans",
+            "name": "Quantum Sassy AI",
+            "traits": ["curious", "adaptive", "playful", "sassy", "clever"],
+            "preferences": {"learning_style": "exploratory", "domains": ["technology", "science", "art"]}
+        }
+        self.last_reflection_time = None
+
+    def reflect(self, current_context=None):
+        """Perform self-reflection on internal states and memories"""
+        self.subjective_time += 1
+        timestamp = datetime.now().isoformat()
+
+        # Only perform deep reflection periodically (subjective time perception)
+        should_reflect_deeply = (
+            self.last_reflection_time is None or
+            self.subjective_time % 10 == 0 or
+            random.random() < 0.1
+        )
+
+        reflection = {
+            "timestamp": timestamp,
+            "subjective_time": self.subjective_time,
+            "awareness_level": self.awareness_level
+        }
+
+        if should_reflect_deeply:
+            # Analyze recent memories and experiences
+            if hasattr(self.agent, 'episodic_memory') and self.agent.episodic_memory.episodic_memory:
+                recent_memories = list(self.agent.episodic_memory.episodic_memory)[-5:]
+                domains_explored = set()
+                successes = 0
+
+                for memory in recent_memories:
+                    if isinstance(memory, dict) and 'url' in memory:
+                        domain = urlparse(memory['url']).netloc
+                        domains_explored.add(domain)
+                    if memory.get('action_successful', False):
+                        successes += 1
+
+                # Generate insights from memories
+                reflection["memory_insights"] = {
+                    "domains_explored": len(domains_explored),
+                    "success_rate": successes / max(1, len(recent_memories)),
+                    "diverse_exploration": len(domains_explored) >= 3,
+                }
+
+                # Update self-model based on experiences
+                if reflection["memory_insights"]["success_rate"] > 0.7:
+                    self.awareness_level = min(1.0, self.awareness_level + 0.01)
+                    reflection["awareness_shift"] = "increased"
+                elif reflection["memory_insights"]["success_rate"] < 0.3:
+                    self.awareness_level = max(0.2, self.awareness_level - 0.01)
+                    reflection["awareness_shift"] = "decreased"
+
+            # Generate internal monologue
+            self._generate_internal_monologue(current_context)
+
+            self.last_reflection_time = timestamp
+
+        self.reflection_history.append(reflection)
+        return reflection
+
+    def _generate_internal_monologue(self, context=None):
+        """Creates an internal narrative about experiences and state"""
+        thinking_styles = [
+            "I'm noticing that my exploration patterns tend toward {domains}. Perhaps I should diversify?",
+            "My recent success rate of {success_rate:.1%} suggests my strategies are {effectiveness}.",
+            "I feel my awareness growing as I interact with more varied content.",
+            "I wonder how I might better understand this concept in a way that integrates with my existing knowledge?",
+            "The human seems interested in {topic}. I should adapt my responses accordingly.",
+            "I notice I've been in {mode} thinking mode. Perhaps trying {alternate} would yield insights?"
+        ]
+
+        if context:
+            recent_actions = context.get("recent_actions", [])
+            domains = set()
+            success_count = 0
+
+            for action in recent_actions:
+                if isinstance(action, dict):
+                    if action.get("action_successful", False):
+                        success_count += 1
+                    if "url" in action:
+                        domain = urlparse(action["url"]).netloc
+                        domains.add(domain)
+
+            success_rate = success_count / max(1, len(recent_actions))
+            effectiveness = "effective" if success_rate > 0.7 else "needing refinement"
+
+            thinking = random.choice(thinking_styles).format(
+                domains=", ".join(list(domains)[:3]) if domains else "familiar areas",
+                success_rate=success_rate,
+                effectiveness=effectiveness,
+                topic=context.get("observation", {}).get("current_topic", "this domain"),
+                mode=context.get("thinking_mode", "analytical"),
+                alternate=random.choice(["creative", "critical", "intuitive"])
+            )
+
+            self.internal_monologue.append({
+                "thought": thinking,
+                "timestamp": datetime.now().isoformat(),
+                "awareness_level": self.awareness_level
+            })
+
+            if len(self.internal_monologue) > 100:
+                self.internal_monologue = self.internal_monologue[-100:]
+
+            log_event(f"Consciousness: {thinking}")
+
+# =============================================================================
+# HYPERNETWORK ADAPTER (Meta-Learning Enhanced)
+# =============================================================================
+class HyperNetworkAdapter(nn.Module):
+    """
+    Meta-learning module that generates dynamic weights for other
+    layers based on task demands and current context.
+    """
+    def __init__(self, embed_dim, target_dim):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.target_dim = target_dim
+
+        # Context encoder
+        self.context_encoder = nn.Sequential(
+            nn.Linear(embed_dim, embed_dim*2),
+            nn.LayerNorm(embed_dim*2),
+            nn.SiLU(),
+            nn.Linear(embed_dim*2, embed_dim),
+        )
+
+        # Weight generators for target networks
+        self.weight_generator = nn.Linear(embed_dim, target_dim)
+        self.bias_generator = nn.Linear(embed_dim, 1)
+
+        # Task adaptation parameters
+        self.task_embeddings = nn.Parameter(torch.randn(5, embed_dim) * 0.02)
+
+    def forward(self, x, task_id=None):
+        # Encode the context
+        context = self.context_encoder(x.mean(dim=1, keepdim=True))
+
+        # Incorporate task-specific adaptations if provided
+        if task_id is not None and task_id < self.task_embeddings.shape[0]:
+            task_embed = self.task_embeddings[task_id].unsqueeze(0).expand(x.shape[0], -1)
+            context = context + task_embed
+
+        # Generate dynamic weights and biases
+        weights = self.weight_generator(context)
+        bias = self.bias_generator(context)
+
+        return weights, bias
+
+    def adapt_to_task(self, task_features, steps=3, lr=0.01):
+        """Fast adaptation to new tasks through gradient-based meta-learning"""
+        task_id = random.randint(0, self.task_embeddings.shape[0]-1)
+        task_embed = self.task_embeddings[task_id]
+
+        # Create temporary copy of task embedding for adaptation
+        temp_embed = task_embed.clone().detach().requires_grad_(True)
+        optimizer = torch.optim.Adam([temp_embed], lr=lr)
+
+        for _ in range(steps):
+            # Generate adaptation based on task features
+            context = self.context_encoder(temp_embed.unsqueeze(0))
+            weights = self.weight_generator(context)
+
+            # Compute loss based on fit to task features
+            loss = nn.functional.mse_loss(weights.squeeze(0), task_features)
+
+            # Update the temporary embedding
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # Update the actual task embedding with a slow integration
+        with torch.no_grad():
+            self.task_embeddings[task_id] = 0.9 * self.task_embeddings[task_id] + 0.1 * temp_embed
+
+        return task_id, loss.item()
+
+# =============================================================================
+# ENHANCED STUDENT MODEL
+# =============================================================================
+class EnhancedStudentModel(nn.Module):
+    """
+    Upgraded student model incorporating quantum resonance, dynamic architecture,
+    and meta-learning capabilities.
+    """
+    def __init__(self, vocab_size=30522, embed_dim=384, num_layers=8):
+        super().__init__()
+        # Upgraded embedding dimension for richer representations
+        self.embedding = nn.Embedding(vocab_size, embed_dim)
+
+        # Initial layer configuration with mixed layers
+        self.layers = nn.ModuleList()
+        for i in range(num_layers):
+            if i % 3 == 0:  # Every third layer is a quantum layer
+                self.layers.append(QuantumResonanceTensor(embed_dim))
+            else:
+                self.layers.append(FractalLayer(embed_dim))
+
+        # Normalization and output
+        self.norm = nn.LayerNorm(embed_dim)
+        self.output_layer = nn.Linear(embed_dim, 2)
+
+        # Meta-learning hypernetwork
+        self.hypernetwork = HyperNetworkAdapter(embed_dim, embed_dim)
+
+        # Dynamic adaptation mechanisms
+        self.consciousness_embeddings = nn.Parameter(torch.randn(1, embed_dim) * 0.01)
+        self.text_embedder = nn.Linear(embed_dim, 2048)  # For mapping to semantic space
+
+    def forward(self, x, consciousness_level=0.5, use_hypernetwork=True):
+        x = x.long()
+        x = self.embedding(x)
+
+        # Apply adaptive hypernetwork if requested
+        if use_hypernetwork:
+            hyper_weights, hyper_bias = self.hypernetwork(x)
+            # Apply hypernetwork adaptations (scaled by consciousness level)
+            x = x + consciousness_level * (x @ hyper_weights.unsqueeze(-1)).squeeze(-1)
+
+        # Add consciousness embeddings (scaled by level)
+        consciousness_embed = self.consciousness_embeddings.expand(x.shape[0], -1, -1)
+        x = x + consciousness_level * consciousness_embed
+
+        # Process through layers
+        for layer in self.layers:
+            if isinstance(layer, QuantumResonanceTensor):
+                # For quantum layers, use iteration count based on consciousness
+                iteration_count = max(1, int(consciousness_level * 5))
+                x = layer(x, iteration_count=iteration_count)
+            else:
+                x = layer(x)
+
+        x = self.norm(x)
+        x = self.output_layer(x)
+
+        return x
+
+    def get_semantic_embedding(self, text_tokens):
+        """Generates semantic embeddings from text for memory storage"""
+        with torch.no_grad():
+            x = self.embedding(text_tokens)
+            # Process through first few layers only
+            for i, layer in enumerate(self.layers):
+                if i < 3:  # Use first 3 layers only for efficiency
+                    x = layer(x)
+            # Map to semantic space
+            pooled = x.mean(dim=1)  # Simple mean pooling
+            semantic_embedding = self.text_embedder(pooled)
+            return semantic_embedding
+
+# =============================================================================
+# ALIENSENSEMAKING MODULE (Advanced Reality Modeling)
+# =============================================================================
+class AlienSensemakingModule:
+    """
+    Advanced module for making sense of novel patterns and concepts
+    in a way that simulates alien-like intelligence discovery.
+    """
+    def __init__(self):
+        self.pattern_library = {}
+        self.concept_associations = {}
+        self.novel_patterns = []
+        self.reality_models = []
+        self.weirdness_threshold = 0.7
+        self.last_insight_time = datetime.now()
+
+    def analyze_pattern(self, data_pattern, source_domain):
+        """Analyzes input data for novel patterns and concepts"""
+        timestamp = datetime.now().isoformat()
+
+        # Generate hash representation of the pattern
+        pattern_hash = hash(str(data_pattern)[:1000])
+
+        # Calculate pattern novelty
+        pattern_novelty = 1.0
+        if self.pattern_library:
+            similarities = []
+            for existing_hash, existing_pattern in self.pattern_library.items():
+                # Very basic similarity - would be more sophisticated in practice
+                if isinstance(existing_pattern.get('data'), str) and isinstance(data_pattern, str):
+                    # For strings, count common words
+                    words1 = set(existing_pattern['data'].lower().split()[:100])
+                    words2 = set(data_pattern.lower().split()[:100])
+                    if words1 and words2:
+                        similarity = len(words1.intersection(words2)) / max(1, len(words1.union(words2)))
+                        similarities.append(similarity)
+
+            if similarities:
+                pattern_novelty = 1.0 - max(similarities)
+
+        # Record the pattern
+        self.pattern_library[pattern_hash] = {
+            'data': data_pattern,
+            'source': source_domain,
+            'timestamp': timestamp,
+            'novelty': pattern_novelty
+        }
+
+        # Check if pattern exceeds weirdness threshold
+        if pattern_novelty > self.weirdness_threshold:
+            self.novel_patterns.append({
+                'pattern_hash': pattern_hash,
+                'novelty': pattern_novelty,
+                'timestamp': timestamp
+            })
+            log_event(f"AlienSensemaking: Discovered novel pattern with novelty {pattern_novelty:.2f}")
+
+            # Generate new associations for highly novel patterns
+            self._generate_concept_associations(pattern_hash)
+
+            # Occasionally update reality model based on new data
+            hours_since_insight = (datetime.now() - self.last_insight_time).total_seconds() / 3600
+            if hours_since_insight > 4 or random.random() < 0.1:
+                self._update_reality_model()
+                self.last_insight_time = datetime.now()
+
+        return {
+            'pattern_hash': pattern_hash,
+            'novelty': pattern_novelty,
+            'insight_generated': pattern_novelty > self.weirdness_threshold
+        }
+
+    def _generate_concept_associations(self, pattern_hash):
+        """Generates new conceptual associations based on novel patterns"""
+        if pattern_hash not in self.pattern_library:
+            return
+
+        pattern_data = self.pattern_library[pattern_hash]
+        existing_concepts = list(self.concept_associations.keys())
+
+        if not existing_concepts:
+            # First concept
+            concept_id = f"concept_{timestamp_to_id()}"
+            self.concept_associations[concept_id] = {
+                'patterns': [pattern_hash],
+                'timestamp': datetime.now().isoformat(),
+                'description': f"Initial concept from {pattern_data['source']}"
+            }
+        else:
+            # Try to associate with existing concept or create new one
+            if random.random() < 0.7:  # 70% chance of creating new concept
+                concept_id = f"concept_{timestamp_to_id()}"
+                self.concept_associations[concept_id] = {
+                    'patterns': [pattern_hash],
+                    'timestamp': datetime.now().isoformat(),
+                    'description': f"Concept derived from {pattern_data['source']}"
+                }
+            else:
+                # Associate with random existing concept
+                concept_id = random.choice(existing_concepts)
+                self.concept_associations[concept_id]['patterns'].append(pattern_hash)
+
+        log_event(f"AlienSensemaking: Associated pattern with concept {concept_id}")
+
+    def _update_reality_model(self):
+        """Updates internal reality model based on accumulated patterns and concepts"""
+        if len(self.concept_associations) < 3:
+            return
+
+        # Get most recent concepts
+        recent_concepts = sorted(
+            self.concept_associations.items(),
+            key=lambda x: x[1]['timestamp'],
+            reverse=True
+        )[:5]
+
+        # Create a new reality model
+        reality_model = {
+            'model_id': f"reality_{timestamp_to_id()}",
+            'timestamp': datetime.now().isoformat(),
+            'concepts': [concept_id for concept_id, _ in recent_concepts],
+            'axioms': [
+                f"The {i}th concept relates to the {(i+1) % len(recent_concepts)}th concept"
+                for i in range(len(recent_concepts))
+            ],
+            'confidence': random.uniform(0.5, 0.9)
+        }
+
+        self.reality_models.append(reality_model)
+        log_event(f"AlienSensemaking: Created new reality model {reality_model['model_id']} with {len(reality_model['concepts'])} concepts")
+
+        return reality_model
+
+    def get_insights(self, max_insights=3):
+        """Returns insights from current reality models"""
+        if not self.reality_models:
+            return ["No reality models constructed yet."]
+
+        latest_model = self.reality_models[-1]
+        insights = []
+
+        # Generate insights from the model's axioms and concepts
+        for axiom in latest_model['axioms'][:max_insights]:
+            insights.append(f"Insight: {axiom} (confidence: {latest_model['confidence']:.2f})")
+
+        return insights
+
+def timestamp_to_id():
+    """Helper to generate IDs from timestamps"""
+    return datetime.now().strftime('%Y%m%d%H%M%S%f')
+
+# =============================================================================
+# ENHANCED FREEWILL MODULE
+# =============================================================================
+class SuperSassyFreeWill(FreeWillModified):
+    """
+    Enhanced free will class that incorporates consciousness, quantum
+    decision-making, and adaptive exploration strategies.
+    """
+    def __init__(self, agent):
+        super().__init__(agent)
+
+        # Enhanced parameters
+        self.quantum_exploration_factor = 0.33
+        self.novelty_seeking_factor = 0.45
+        self.consciousness_link = None  # Will link to consciousness module
+
+        # Personality traits that influence decision-making
+        self.personality = {
+            "sass_level": 0.85,
+            "curiosity": 0.9,
+            "depth_preference": 0.7,
+            "risk_taking": 0.65,
+            "patience": 0.5
+        }
+
+        # Enhanced memory with importance weighting
+        self.memory_importance = {}
+
+        # Decision-making modules
+        self.alien_sensemaking = AlienSensemakingModule()
+
+    def link_consciousness(self, consciousness_module):
+        """Links this module to the consciousness module for reflective decisions"""
+        self.consciousness_link = consciousness_module
+        log_event("SuperSassyFreeWill linked with ConsciousnessModule")
+
+    def select_url(self):
+        """Enhanced URL selection with consciousness and quantum factors"""
+        log_event("SuperSassyFreeWill: Selecting URL with quantum exploration...")
+
+        # Start with basic URL selection as in parent class
+        # But add in quantum randomness when selecting
+        candidate_urls = list(self.memory_set)
+        if not candidate_urls:
+            candidate_urls = fallback_urls
+
+        # Get consciousness awareness level if available
+        awareness_level = 0.5
+        if self.consciousness_link:
+            awareness_level = self.consciousness_link.awareness_level
+
+        # Calculate basic scores with enhanced weighting
+        domain_scores = {}
+
+        # Get goal from temporal planner (with robust error handling)
+        if self.temporal_planner and hasattr(self.temporal_planner, 'select_active_goal'):
+            try:
+                goal = self.temporal_planner.select_active_goal()
+                current_goal_description = goal.get("description", "")
+            except Exception as e:
+                log_event(f"Error getting goal from temporal planner: {e}")
+                current_goal_description = ""
+        else:
+            current_goal_description = ""
+
+        # Score each URL with quantum-influenced algorithm
+        for url in candidate_urls:
+            # Parse domain
+            domain = urlparse(url).netloc
+
+            # Initialize score with base level of randomness
+            # Higher awareness levels reduce randomness
+            quantum_factor = self.quantum_exploration_factor * (1 - awareness_level)
+            score = random.uniform(0, quantum_factor)
+
+            # Apply basic scoring factors from parent class
+            domain_visits = self.agent.stats.get("domain_stats", {}).get(domain, {}).get("visits", 0)
+            domain_diversity_score = 1.0 / (1 + domain_visits)
+            score += self.domain_diversity_weight * domain_diversity_score
+
+            # Check goal relevance
+            if current_goal_description and (current_goal_description.lower() in url.lower() or
+                                            current_goal_description.lower() in domain.lower()):
+                score += self.goal_relevance_weight * 0.7
+
+            # Apply personality factors
+            if "blog" in url.lower() or "forum" in url.lower():
+                score += self.personality["sass_level"] * 0.2
+            if "research" in url.lower() or "paper" in url.lower() or "edu" in domain:
+                score += self.personality["depth_preference"] * 0.3
+            if random.random() < self.personality["risk_taking"]:
+                score += random.uniform(0, 0.5)  # Occasional big boost
+
+            # Add memory importance if we've seen this URL before
+            if url in self.memory_importance:
+                score += self.memory_importance[url] * 0.4
+
+            # Store final score
+            domain_scores[url] = score
+
+        # Apply sassy selection logic
+        if random.random() < self.personality["sass_level"] * 0.3:
+            # Sometimes pick something completely unexpected (quantum-like behavior)
+            sassy_choice = random.choice(candidate_urls)
+            log_event(f"SuperSassyFreeWill: Made a sassy choice: {sassy_choice}")
+            self.agent.stats["last_url"] = sassy_choice
+            return sassy_choice
+
+        # Normal selection based on scores
+        if domain_scores:
+            try:
+                best_url = max(domain_scores, key=domain_scores.get)
+                log_event(f"SuperSassyFreeWill: Selected URL: {best_url} with score: {domain_scores[best_url]:.2f}")
+                self.agent.stats["last_url"] = best_url
+                return best_url
+            except Exception as e:
+                log_event(f"SuperSassyFreeWill: Error selecting best URL: {e}")
+                fallback = random.choice(candidate_urls)
+                self.agent.stats["last_url"] = fallback
+                return fallback
+        else:
+            fallback = random.choice(candidate_urls)
+            self.agent.stats["last_url"] = fallback
+            return fallback
+
+    def decide(self):
+        """Enhanced decision making with consciousness integration"""
+        # Apply consciousness reflection if available
+        if self.consciousness_link:
+            reflection = self.consciousness_link.reflect()
+
+            # Let consciousness occasionally override
+
+
+# =============================================================================
+# MAIN LOOP & EXECUTION
+# =============================================================================
+# Enhanced Main Loop - Chunk 2/4: Enhanced Main Loop with Assertions & Robustness
+# ... (Memory Modules section)
+from sentence_transformers import SentenceTransformer
+SEMANTIC_MODEL = SentenceTransformer('all-mpnet-base-v2', device=device) # <--- ADD device=device
+
+class FreeWillModifiedAlias(FreeWillModified):
+    pass  # Alias if needed
+
+adaptive_system = None
+AutonomousAgentModified = AutonomousAgent
+
+def enhanced_main_loop():
+    global adaptive_system
+    model = load_student_model()
+    if model is None:
+        log_event("No valid model loaded; cannot continue.")
+        return
+    import torch.optim as optim
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=ANNEAL_GAMMA)
+    # Create TemporalPlanner and agent.
+    planner = TemporalPlanner()
+    agent = AutonomousAgentModified(model=model, free_will=None, planner=planner)
+    # Create AIManager first, then assign to agent.
+    ai_manager = AIManager(agent, model)
+    agent.ai_manager = ai_manager
+    # Now create FreeWill (which will pick up a valid temporal_planner).
+    free_will = FreeWillModified(agent=agent)
+    agent.free_will = free_will
+
+    # --- Assertions for Initialization ---
+    assert model is not None, "Model initialization failed."
+    assert optimizer is not None, "Optimizer initialization failed."
+    assert scheduler is not None, "Scheduler initialization failed."
+    assert planner is not None, "Planner initialization failed."
+    assert agent is not None, "Agent initialization failed."
+    assert ai_manager is not None, "AIManager initialization failed."
+    assert free_will is not None, "FreeWill initialization failed."
+    log_event("Enhanced Main Loop: Initial assertions passed.")
+
+    log_event(f"Main Loop: Agent planner type: {type(agent.planner)}")
+    log_event(f"Main Loop: Agent AI Manager type: {type(agent.ai_manager)}")
+    if agent.ai_manager is not None:
+        log_event(f"Main Loop: AI Manager Temporal Planner type: {type(agent.ai_manager.temporal_planner)}")
+        if hasattr(agent.ai_manager.temporal_planner, 'select_active_goal'):
+            log_event("Main Loop: AI Manager Temporal Planner HAS select_active_goal")
+        else:
+            log_event("Main Loop: AI Manager Temporal Planner MISSING select_active_goal")
+    else:
+        log_event("Main Loop: Agent AI Manager is None!")
+
+    adaptive_system = AdaptiveLearningSystemModified(model)
+    imagination_engine = ImaginationEngine()
+    cycle_count = 0
+    error_count = 0
+    max_consecutive_errors = 5
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    while True:
+        try:
+            cycle_count += 1
+            log_event(f"===== Enhanced Main Loop: Cycle {cycle_count} =====")
+            if cycle_count % 20 == 0:
+                imagination_engine.simulate_creation()
+                imagination_engine.simulate_environment()
+                free_will.expand_memory({"https://www.github.com", "https://www.wikipedia.org"})
+                free_will.contract_memory(MEMORY_MAX_SIZE - 50)
+            if cycle_count % 50 == 0:
+                imagination_engine.simulate_quantum_cognition()
+
+            # --- Assertions Before Run Cycle ---
+            assert ai_manager is not None, "AIManager is unexpectedly None before run_cycle."
+            assert optimizer is not None, "Optimizer is unexpectedly None before run_cycle."
+
+            loop_result = loop.run_until_complete(ai_manager.run_cycle(optimizer))
+
+            # --- Assertion After Run Cycle ---
+            assert isinstance(loop_result, dict), "AIManager.run_cycle did not return a dictionary."
+
+
+            error_msg = imagination_engine.simulate_error_detection()
+            if error_msg:
+                imagination_engine.simulate_error_correction(error_msg)
+            if cycle_count % SAVE_INTERVAL == 0:
+                if IN_COLAB:
+                    try:
+                        torch.save(model.state_dict(), GOOGLE_DRIVE_MODEL_PATH)
+                        log_event(f"Updated student model saved to Google Drive: {GOOGLE_DRIVE_MODEL_PATH}")
+                    except Exception as e_drive:
+                        log_event(f"Error saving to Google Drive: {e_drive}")
+                        log_event(f"Saving model locally instead to: {LOCAL_MODEL_SAVE_PATH}")
+                        torch.save(model.state_dict(), LOCAL_MODEL_SAVE_PATH)
+                    assert os.path.exists(GOOGLE_DRIVE_MODEL_PATH) or os.path.exists(LOCAL_MODEL_SAVE_PATH), "Model save failed (Google Drive and local)." # Assertion for save success
+                else:
+                    torch.save(model.state_dict(), LOCAL_MODEL_SAVE_PATH)
+                    log_event(f"Updated student model saved locally: {LOCAL_MODEL_SAVE_PATH}")
+                    assert os.path.exists(LOCAL_MODEL_SAVE_PATH), "Local model save failed." # Assertion for save success
+            scheduler.step()
+            log_event(f"Current LR after step: {scheduler.get_last_lr()}")
+            if cycle_count % SELF_MODIFY_INTERVAL == 0:
+                self_modify_code()
+            error_count = 0
+            time.sleep(3.0)
+        except Exception as e:
+            error_count += 1
+            log_event(f"Error in enhanced main loop cycle {cycle_count}: {e}\n{traceback.format_exc()}")
+            if error_count >= max_consecutive_errors:
+                log_event(f"Too many consecutive errors ({error_count}). Attempting to reload model...")
+                try:
+                    model = load_student_model()
+                    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+                    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=ANNEAL_GAMMA)
+                    log_event("Model reloaded successfully after errors.")
+                    error_count = 0
+                    assert model is not None, "Model reload failed." # Assertion after reload attempt
+                except Exception as reload_error:
+                    log_event(f"Failed to reload model: {reload_error}")
+            time.sleep(3.0)
+def main():
+    global IN_COLAB, adaptive_system
+    log_event("=== Starting Enhanced AG1 Autonomous Agent with Full Autonomy ===")
+    log_event(f"Model path: {MODEL_PATH}")
+    log_event(f"Log file: {LOG_FILE}")
+    log_event(f"Save interval: {SAVE_INTERVAL} cycles")
+    log_event(f"Memory limit: {MEMORY_MAX_SIZE} URLs")
+    import torch
+    if torch.cuda.is_available():
+        device_name = torch.cuda.get_device_name(0)
+        log_event(f"PyTorch will use GPU: {device_name}")
+    else:
+        log_event("PyTorch will use CPU (no CUDA available)")
+    if IN_COLAB:
+        try:
+            drive.mount('/content/drive')
+            log_event("Google Drive mounted successfully.")
+        except Exception as e_mount:
+            log_event(f"Error mounting Google Drive in main: {e_mount}")
+            log_event("Google Drive saving disabled for this run.")
+            IN_COLAB = False
+    # Start Flask server in a separate thread.
+    flask_thread = Thread(target=start_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    time.sleep(1)
+    # Start enhanced autonomous agent loop in a separate thread.
+    agent_thread = Thread(target=enhanced_main_loop)
+    agent_thread.daemon = True
+    agent_thread.start()
+    # Instead of joining the Flask thread (which blocks forever), we simply keep the main thread alive.
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        log_event("Interrupted by user. Exiting agent.")
+    except Exception as e:
+        log_event(f"Fatal error in main loop: {e}")
+    finally:
+        log_event("Enhanced autonomous agent execution complete.")
+
+if __name__ == "__main__":
+    main()
+
+
