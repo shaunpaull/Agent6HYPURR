@@ -10777,202 +10777,227 @@ class HyperMorphicMetaEvolutionEngine:
         # Make all values zero-free
         return [self.hyper_math.zero_free(val) for val in base_values]
 
-     _assess_capability_levels(self, agent):
-    """
-    Assess current capability levels of the system across target areas
-    using HyperMorphic zero-free operations.
+    def _assess_capability_levels(self, agent):
+        """Assess current capability levels of the system across target areas
+        using HyperMorphic zero-free operations.
 
-    Parameters:
-    - agent: Agent to assess
+        Parameters:
+        - agent: Agent to assess
 
-    Returns:
-    - Dictionary of capability scores with zero-free values
-    """
-    capabilities = {}
+        Returns:
+        - Dictionary of capability scores with zero-free values
+        """
+        capabilities = {}
 
-    # 1. Knowledge representation capability
-    kr_score = self.hyper_math.zero_free(0.5)  # Default with zero-free guarantee
+        # 1. Knowledge representation capability
+        kr_score = self.hyper_math.zero_free(0.5)  # Default with zero-free guarantee
 
-    # Check for semantic memory capacity with HyperMorphic scaling
-    if hasattr(agent, 'free_will') and hasattr(agent.free_will, 'semantic_memory'):
-        memory_size = len(agent.free_will.semantic_memory)
-        # Scale based on size: 0-1000 items maps to 0.5-0.9 score
-        kr_size_factor = self.hyper_math.min(
-            self.hyper_math.zero_free(0.4),
-            self.hyper_math.div(
-                self.hyper_math.zero_free(memory_size),
-                self.hyper_math.zero_free(2500)
-            )
-        )
-        kr_score = self.hyper_math.add(kr_score, kr_size_factor)
-
-    # Check for memory importance tracking with HyperMorphic addition
-    if hasattr(agent, 'free_will') and hasattr(agent.free_will, 'memory_importance'):
-        kr_score = self.hyper_math.add(kr_score, self.hyper_math.zero_free(0.1))
-
-    # Ensure capability score is capped with HyperMorphic min
-    capabilities["knowledge_representation"] = self.hyper_math.min(
-        self.hyper_math.zero_free(0.95),
-        kr_score
-    )
-
-    # 2. Planning capability with zero-free operations
-    planning_score = self.hyper_math.zero_free(0.4)  # Default
-
-    # Check for temporal planner with HyperMorphic addition
-    if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'temporal_planner'):
-        planner = agent.ai_manager.temporal_planner
-        planning_score = self.hyper_math.add(planning_score, self.hyper_math.zero_free(0.2))
-
-        # Check for goal system with zero-free scaling
-        if hasattr(planner, 'long_term_goals') and planner.long_term_goals:
-            goal_boost = self.hyper_math.min(
-                self.hyper_math.zero_free(0.2),
-                self.hyper_math.mul(
-                    self.hyper_math.zero_free(len(planner.long_term_goals)),
-                    self.hyper_math.zero_free(0.05)
+        # Check for semantic memory capacity with HyperMorphic scaling
+        if hasattr(agent, 'free_will') and hasattr(agent.free_will, 'semantic_memory'):
+            memory_size = len(agent.free_will.semantic_memory)
+            # Scale based on size: 0-1000 items maps to 0.5-0.9 score
+            kr_size_factor = self.hyper_math.min(
+                self.hyper_math.zero_free(0.4),
+                self.hyper_math.div(
+                    self.hyper_math.zero_free(memory_size),
+                    self.hyper_math.zero_free(2500)
                 )
             )
-            planning_score = self.hyper_math.add(planning_score, goal_boost)
+            kr_score = self.hyper_math.add(kr_score, kr_size_factor)
 
-        # Check for reflection capability with HyperMorphic addition
-        if hasattr(planner, 'reflect_and_adapt'):
-            planning_score = self.hyper_math.add(planning_score, self.hyper_math.zero_free(0.1))
+        # Check for memory importance tracking with HyperMorphic addition
+        if hasattr(agent, 'free_will') and hasattr(agent.free_will, 'memory_importance'):
+            kr_score = self.hyper_math.add(kr_score, self.hyper_math.zero_free(0.1))
 
-    # Ensure planning capability is capped with HyperMorphic min
-    capabilities["planning"] = self.hyper_math.min(
-        self.hyper_math.zero_free(0.95),
-        planning_score
-    )
+        # Ensure capability score is capped with HyperMorphic min
+        capabilities["knowledge_representation"] = self.hyper_math.min(
+            self.hyper_math.zero_free(0.95),
+            kr_score
+        )
 
-    # 3. Learning capability with zero-free initialization
-    learning_score = self.hyper_math.zero_free(0.3)  # Default
+        # 2. Planning capability with zero-free operations
+        planning_score = self.hyper_math.zero_free(0.4)  # Default
 
-    # Check for adaptive learning system with HyperMorphic addition
-    if hasattr(agent, 'adaptive_learning'):
-        learning_score = self.hyper_math.add(learning_score, self.hyper_math.zero_free(0.3))
+        # Check for temporal planner with HyperMorphic addition
+        if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'temporal_planner'):
+            planner = agent.ai_manager.temporal_planner
+            planning_score = self.hyper_math.add(planning_score, self.hyper_math.zero_free(0.2))
 
-        # Check for meta-learning capability with HyperMorphic addition
-        if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'meta_learning'):
+            # Check for goal system with zero-free scaling
+            if hasattr(planner, 'long_term_goals') and planner.long_term_goals:
+                goal_boost = self.hyper_math.min(
+                    self.hyper_math.zero_free(0.2),
+                    self.hyper_math.mul(
+                        self.hyper_math.zero_free(len(planner.long_term_goals)),
+                        self.hyper_math.zero_free(0.05)
+                    )
+                )
+                planning_score = self.hyper_math.add(planning_score, goal_boost)
+
+            # Check for reflection capability with HyperMorphic addition
+            if hasattr(planner, 'reflect_and_adapt'):
+                planning_score = self.hyper_math.add(planning_score, self.hyper_math.zero_free(0.1))
+
+        # Ensure planning capability is capped with HyperMorphic min
+        capabilities["planning"] = self.hyper_math.min(
+            self.hyper_math.zero_free(0.95),
+            planning_score
+        )
+
+        # 3. Learning capability with zero-free initialization
+        learning_score = self.hyper_math.zero_free(0.3)  # Default
+
+        # Check for adaptive learning system with HyperMorphic addition
+        if hasattr(agent, 'adaptive_learning'):
             learning_score = self.hyper_math.add(learning_score, self.hyper_math.zero_free(0.3))
 
-    # Ensure learning capability is capped with HyperMorphic min
-    capabilities["learning"] = self.hyper_math.min(
-        self.hyper_math.zero_free(0.95),
-        learning_score
-    )
+            # Check for meta-learning capability with HyperMorphic addition
+            if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'meta_learning'):
+                learning_score = self.hyper_math.add(learning_score, self.hyper_math.zero_free(0.3))
 
-    # 4. Error handling capability with zero-free initialization
-    error_score = self.hyper_math.zero_free(0.3)  # Default
+        # Ensure learning capability is capped with HyperMorphic min
+        capabilities["learning"] = self.hyper_math.min(
+            self.hyper_math.zero_free(0.95),
+            learning_score
+        )
 
-    # Check for imagination-based error detection with HyperMorphic addition
-    if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'imagination'):
-        imagination = agent.ai_manager.imagination
-        if hasattr(imagination, 'simulate_error_detection'):
-            error_score = self.hyper_math.add(error_score, self.hyper_math.zero_free(0.3))
+        # 4. Error handling capability with zero-free initialization
+        error_score = self.hyper_math.zero_free(0.3)  # Default
 
-        if hasattr(imagination, 'simulate_error_correction'):
-            error_score = self.hyper_math.add(error_score, self.hyper_math.zero_free(0.2))
+        # Check for imagination-based error detection with HyperMorphic addition
+        if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'imagination'):
+            imagination = agent.ai_manager.imagination
+            if hasattr(imagination, 'simulate_error_detection'):
+                error_score = self.hyper_math.add(error_score, self.hyper_math.zero_free(0.3))
 
-    # Check for error recovery in AI manager with HyperMorphic addition
-    if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'error_recovery_attempts') is not None:
-        error_score = self.hyper_math.add(error_score, self.hyper_math.zero_free(0.1))
+            if hasattr(imagination, 'simulate_error_correction'):
+                error_score = self.hyper_math.add(error_score, self.hyper_math.zero_free(0.2))
 
-    # Ensure error handling capability is capped with HyperMorphic min
-    capabilities["error_handling"] = self.hyper_math.min(
-        self.hyper_math.zero_free(0.95),
-        error_score
-    )
+        # Check for error recovery in AI manager with HyperMorphic addition
+        if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'error_recovery_attempts') is not None:
+            error_score = self.hyper_math.add(error_score, self.hyper_math.zero_free(0.1))
 
-    # 5. Creative synthesis capability with zero-free initialization
-    creative_score = self.hyper_math.zero_free(0.2)  # Default
+        # Ensure error handling capability is capped with HyperMorphic min
+        capabilities["error_handling"] = self.hyper_math.min(
+            self.hyper_math.zero_free(0.95),
+            error_score
+        )
 
-    # Check for imagination engine with HyperMorphic addition
-    if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'imagination'):
-        imagination = agent.ai_manager.imagination
-        creative_score = self.hyper_math.add(creative_score, self.hyper_math.zero_free(0.3))
+        # 5. Creative synthesis capability with zero-free initialization
+        creative_score = self.hyper_math.zero_free(0.2)  # Default
 
-        # Check for creativity level with proportional HyperMorphic scaling
-        if hasattr(imagination, 'creativity_level'):
-            creative_boost = self.hyper_math.mul(
-                self.hyper_math.zero_free(imagination.creativity_level),
-                self.hyper_math.zero_free(0.3)
-            )
-            creative_score = self.hyper_math.add(creative_score, creative_boost)
+        # Check for imagination engine with HyperMorphic addition
+        if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'imagination'):
+            imagination = agent.ai_manager.imagination
+            creative_score = self.hyper_math.add(creative_score, self.hyper_math.zero_free(0.3))
 
-    # Check for consciousness system with HyperMorphic addition
-    if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'consciousness'):
-        consciousness = agent.ai_manager.consciousness
-
-        # Check for qualia simulation with HyperMorphic addition
-        if hasattr(consciousness, 'qualia_simulation_active'):
-            creative_score = self.hyper_math.add(creative_score, self.hyper_math.zero_free(0.1))
-
-    # Ensure creative synthesis capability is capped with HyperMorphic min
-    capabilities["creative_synthesis"] = self.hyper_math.min(
-        self.hyper_math.zero_free(0.95),
-        creative_score
-    )
-
-    # 6. Quantum superposition capability with zero-free initialization
-    quantum_score = self.hyper_math.zero_free(0.3)  # Default
-
-    # Check for HyperMorphic model with quantum capabilities
-    if hasattr(agent, 'model'):
-        is_hypermorphic = hasattr(agent.model, 'hyper_math')
-
-        if is_hypermorphic:
-            quantum_score = self.hyper_math.add(quantum_score, self.hyper_math.zero_free(0.3))
-
-            # Check for quantum coherence parameter
-            if hasattr(agent.model, 'quantum_coherence'):
-                coherence = agent.model.quantum_coherence
-                quantum_boost = self.hyper_math.mul(
-                    self.hyper_math.zero_free(coherence),
+            # Check for creativity level with proportional HyperMorphic scaling
+            if hasattr(imagination, 'creativity_level'):
+                creative_boost = self.hyper_math.mul(
+                    self.hyper_math.zero_free(imagination.creativity_level),
                     self.hyper_math.zero_free(0.3)
                 )
-                quantum_score = self.hyper_math.add(quantum_score, quantum_boost)
+                creative_score = self.hyper_math.add(creative_score, creative_boost)
 
-    # Check for HyperMorphic free will with quantum capabilities
-    if hasattr(agent, 'free_will') and hasattr(agent.free_will, 'hyper_math'):
-        quantum_score = self.hyper_math.add(quantum_score, self.hyper_math.zero_free(0.2))
+        # Check for consciousness system with HyperMorphic addition
+        if hasattr(agent, 'ai_manager') and hasattr(agent.ai_manager, 'consciousness'):
+            consciousness = agent.ai_manager.consciousness
 
-    # Ensure quantum superposition capability is capped with HyperMorphic min
-    capabilities["quantum_superposition"] = self.hyper_math.min(
-        self.hyper_math.zero_free(0.95),
-        quantum_score
-    )
+            # Check for qualia simulation with HyperMorphic addition
+            if hasattr(consciousness, 'qualia_simulation_active'):
+                creative_score = self.hyper_math.add(creative_score, self.hyper_math.zero_free(0.1))
 
-    # 7. Holomorphic processing capability with zero-free initialization
-    holomorphic_score = self.hyper_math.zero_free(0.25)  # Default
+        # Ensure creative synthesis capability is capped with HyperMorphic min
+        capabilities["creative_synthesis"] = self.hyper_math.min(
+            self.hyper_math.zero_free(0.95),
+            creative_score
+        )
 
-    # Check for holomorphic processing in HyperMorphic model
-    if hasattr(agent, 'model'):
-        is_hypermorphic = hasattr(agent.model, 'hyper_math')
+        # 6. Quantum superposition capability with zero-free initialization
+        quantum_score = self.hyper_math.zero_free(0.3)  # Default
 
-        if is_hypermorphic:
-            holomorphic_score = self.hyper_math.add(holomorphic_score, self.hyper_math.zero_free(0.25))
+        # Check for HyperMorphic model with quantum capabilities
+        if hasattr(agent, 'model'):
+            is_hypermorphic = hasattr(agent.model, 'hyper_math')
 
-            # Check for HyperMorphic structures that support holomorphic processing
-            if hasattr(agent.model, '_apply_holomorphic_transform'):
+            if is_hypermorphic:
+                quantum_score = self.hyper_math.add(quantum_score, self.hyper_math.zero_free(0.3))
+
+                # Check for quantum coherence parameter
+                if hasattr(agent.model, 'quantum_coherence'):
+                    coherence = agent.model.quantum_coherence
+                    quantum_boost = self.hyper_math.mul(
+                        self.hyper_math.zero_free(coherence),
+                        self.hyper_math.zero_free(0.3)
+                    )
+                    quantum_score = self.hyper_math.add(quantum_score, quantum_boost)
+
+        # Check for HyperMorphic free will with quantum capabilities
+        if hasattr(agent, 'free_will') and hasattr(agent.free_will, 'hyper_math'):
+            quantum_score = self.hyper_math.add(quantum_score, self.hyper_math.zero_free(0.2))
+
+        # Ensure quantum superposition capability is capped with HyperMorphic min
+        capabilities["quantum_superposition"] = self.hyper_math.min(
+            self.hyper_math.zero_free(0.95),
+            quantum_score
+        )
+
+        # 7. Holomorphic processing capability with zero-free initialization
+        holomorphic_score = self.hyper_math.zero_free(0.25)  # Default
+
+        # Check for holomorphic processing in HyperMorphic model
+        if hasattr(agent, 'model'):
+            is_hypermorphic = hasattr(agent.model, 'hyper_math')
+
+            if is_hypermorphic:
+                holomorphic_score = self.hyper_math.add(holomorphic_score, self.hyper_math.zero_free(0.25))
+
+                # Check for HyperMorphic structures that support holomorphic processing
+                if hasattr(agent.model, '_apply_holomorphic_transform'):
                     holomorphic_score = self.hyper_math.add(holomorphic_score, self.hyper_math.zero_free(0.25))
 
-        # Check for HyperMorphic modules that preserve holomorphic structure
-        if (hasattr(agent, 'ai_manager') and
-            hasattr(agent.ai_manager, 'evolution_engine') and
-            hasattr(agent.ai_manager.evolution_engine, 'holomorphic_preservation')):
+            # Check for HyperMorphic modules that preserve holomorphic structure
+            if (hasattr(agent, 'ai_manager') and
+                hasattr(agent.ai_manager, 'evolution_engine') and
+                hasattr(agent.ai_manager.evolution_engine, 'holomorphic_preservation')):
 
-            holomorphic_preservation = agent.ai_manager.evolution_engine.holomorphic_preservation
-            holomorphic_boost = self.hyper_math.mul(
-                self.hyper_math.zero_free(holomorphic_preservation),
-                self.hyper_math.zero_free(0.2)
-            )
-            holomorphic_score = self.hyper_math.add(holomorphic_score, holomorphic_boost)
+                holomorphic_preservation = agent.ai_manager.evolution_engine.holomorphic_preservation
+                holomorphic_boost = self.hyper_math.mul(
+                    self.hyper_math.zero_free(holomorphic_preservation),
+                    self.hyper_math.zero_free(0.2)
+                )
+                holomorphic_score = self.hyper_math.add(holomorphic_score, holomorphic_boost)
 
         # Ensure holomorphic processing capability is capped with HyperMorphic min
         capabilities["holomorphic_processing"] = self.hyper_math.min(
             self.hyper_math.zero_free(0.95),
             holomorphic_score
+        )
+
+        # 8. NEW: Reality fabric manipulation capability
+        reality_score = self.hyper_math.zero_free(0.15)  # Lower default - this is advanced
+
+        # Check for reality fabric manipulation in HyperMorphic model
+        if hasattr(agent, 'model') and hasattr(agent.model, 'reality_fabric'):
+            reality_score = self.hyper_math.add(reality_score, self.hyper_math.zero_free(0.35))
+
+            # Check for wormhole generation capability
+            if hasattr(agent.model.reality_fabric, 'generate_wormholes'):
+                reality_score = self.hyper_math.add(reality_score, self.hyper_math.zero_free(0.2))
+
+            # Check for dimensional folding
+            if hasattr(agent.model.reality_fabric, 'dimensional_folding_factor'):
+                folding_factor = agent.model.reality_fabric.dimensional_folding_factor
+                folding_boost = self.hyper_math.mul(
+                    self.hyper_math.zero_free(folding_factor),
+                    self.hyper_math.zero_free(0.25)
+                )
+                reality_score = self.hyper_math.add(reality_score, folding_boost)
+
+        # Ensure reality fabric manipulation capability is capped
+        capabilities["reality_fabric_manipulation"] = self.hyper_math.min(
+            self.hyper_math.zero_free(0.95),
+            reality_score
         )
 
         # Add sparkles to capabilities ✨💜
@@ -10984,14 +11009,41 @@ class HyperMorphicMetaEvolutionEngine:
         capabilities["💜hypermorphic_resonance💜"] = self.hyper_math.zero_free(0.95)
         capabilities["🧚‍♀️magical_coherence🧚‍♀️"] = self.hyper_math.zero_free(0.92)
         capabilities["🌪️dimensional_harmony🌪️"] = self.hyper_math.zero_free(0.93)
+        # New sparkle indicator for upgraded capability
+        capabilities["🌌cosmic_reality_weaving🌌"] = self.hyper_math.zero_free(0.91)
+
+        # Calculate overall capability score with weighted importance
+        weights = {
+            "knowledge_representation": 0.15,
+            "planning": 0.12,
+            "learning": 0.14,
+            "error_handling": 0.11,
+            "creative_synthesis": 0.13,
+            "quantum_superposition": 0.12,
+            "holomorphic_processing": 0.13,
+            "reality_fabric_manipulation": 0.10
+        }
+
+        overall_score = self.hyper_math.zero_free(0.0)
+        for capability, weight in weights.items():
+            if capability in capabilities:
+                weighted_score = self.hyper_math.mul(
+                    capabilities[capability],
+                    self.hyper_math.zero_free(weight)
+                )
+                overall_score = self.hyper_math.add(overall_score, weighted_score)
+
+        capabilities["overall_capability"] = overall_score
 
         # Log capability assessment with sparkles
-        log_event(f"✨💜 HyperMorphic capability assessment complete 💜✨", "QUANTUM")
+        self.log_event(f"✨💜 HyperMorphic capability assessment complete 💜✨", "QUANTUM")
         for capability, score in capabilities.items():
-            if "sparkle" in capability or "resonance" in capability or "coherence" in capability or "harmony" in capability:
-                log_event(f"  {capability}: {score:.2f}", "QUANTUM")
+            if any(marker in capability for marker in ["sparkle", "resonance", "coherence", "harmony", "weaving"]):
+                self.log_event(f"  {capability}: {score:.2f}", "QUANTUM")
             else:
-                log_event(f"  {capability}: {score:.2
+                self.log_event(f"  {capability}: {score:.2f}", "INFO")
+
+        return capabilities
 
     def _initialize_capability_embeddings(self):
         """Initialize capability embeddings in a HyperMorphic vector space"""
